@@ -58,3 +58,6 @@
 .naville-auth button{padding:14px;border:0;background:#20211e;color:white;cursor:pointer;font:inherit}
 .naville-auth [role=alert]:empty{display:none}
 .naville-auth [role=alert]:not(:empty){color:#9a2432;font-size:13px}
+
+/* Vitrine Supabase */
+.real-product-image{background:#f3f3ef;overflow:hidden}.real-product-image>img{width:100%;height:100%;object-fit:contain}.real-product-image .no-photo{font:12px Arial;color:#777}.product-info del{color:#888;font-size:12px}.cart-thumb img{width:100%;height:100%;object-fit:contain}.naville-empty-banner{min-height:230px;background:#e7ecd8;display:grid;place-items:center;font:clamp(30px,5vw,65px) Georgia,serif;color:#4c6046}

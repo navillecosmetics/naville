@@ -1,0 +1,78 @@
+/* Naville cloud v1: autenticação, categorias e banners reais. Sem checkout. */
+(() => {
+ const cfg=window.NAVILLE_SUPABASE||{};
+ const configured=/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(cfg.url)&&/^sb_publishable_/.test(cfg.publishableKey);
+ if(!configured||!window.supabase){
+   if(document.body.classList.contains('admin-body')){
+     document.body.innerHTML='<main style="max-width:640px;margin:12vh auto;font:16px Arial;padding:24px"><h1>Configuração necessária</h1><p>Preencha a URL e a publishable key em <code>supabase-config.js</code>. O painel permanece bloqueado até a configuração.</p></main>';
+   }
+   return;
+ }
+ const db=window.supabase.createClient(cfg.url.replace(/\/$/,''),cfg.publishableKey);
+ const urlFor=(bucket,path)=>path?db.storage.from(bucket).getPublicUrl(path).data.publicUrl:'';
+ const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const slug=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+ const err=e=>{throw new Error(e.message||String(e));};
+ async function upload(bucket,file){
+   if(!file)return null;
+   if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('Formato inválido. Use JPG, PNG ou WebP.');
+   const max=bucket==='banner-images'?10:5;
+   if(file.size>max*1024*1024)throw Error(`Imagem acima de ${max} MB.`);
+   const ext=({ 'image/jpeg':'jpg','image/png':'png','image/webp':'webp'})[file.type];
+   const path=`${crypto.randomUUID()}.${ext}`;
+   const {error}=await db.storage.from(bucket).upload(path,file,{contentType:file.type,upsert:false});if(error)err(error);return path;
+ }
+ async function list(table,columns='*'){const {data,error}=await db.from(table).select(columns);if(error)err(error);return data||[];}
+ async function save(table,payload){const id=payload.id;const query=id?db.from(table).update(Object.fromEntries(Object.entries(payload).filter(([k])=>k!=='id'))).eq('id',id):db.from(table).insert(payload);const {error}=await query;if(error)err(error);}
+ async function remove(table,id){const {error}=await db.from(table).delete().eq('id',id);if(error)err(error);}
+ async function admin(){
+   const layout=document.querySelector('.admin-layout');if(!layout)return;
+   layout.hidden=true;
+   const gate=document.createElement('div');gate.className='naville-auth';document.body.prepend(gate);
+   const showLogin=(message='')=>{layout.hidden=true;gate.hidden=false;gate.innerHTML=`<form id="cloudLogin"><img src="assets/logo.png" alt="Naville"><h1>Acesso administrativo</h1><p>Entre com sua conta autorizada.</p><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button>Entrar</button><p id="cloudAuthMessage" role="alert">${escape(message)}</p></form>`;gate.querySelector('form').onsubmit=async e=>{e.preventDefault();const f=e.currentTarget;const {error}=await db.auth.signInWithPassword({email:f.email.value,password:f.password.value});if(error){gate.querySelector('#cloudAuthMessage').textContent='Não foi possível entrar. Confira os dados.';return;}await check();};};
+   async function check(){const {data:{user}}=await db.auth.getUser();if(!user){showLogin();return;}
+     const {data,error}=await db.from('admin_users').select('role,is_active').eq('user_id',user.id).maybeSingle();
+     if(error||!data?.is_active){await db.auth.signOut();showLogin('Conta sem autorização administrativa.');return;}
+     gate.hidden=true;layout.hidden=false;
+     document.querySelector('.admin-caption').textContent='PAINEL · SUPABASE';
+     document.querySelector('.admin-sub').textContent='Sessão administrativa autenticada';
+     document.querySelector('.notice').textContent='Categorias e banners conectados ao Supabase. Produtos e estoque ainda são demonstrativos; não utilize este painel para vendas reais.';
+     if(!document.querySelector('#cloudLogout')){const b=document.createElement('button');b.id='cloudLogout';b.textContent='Sair da conta';document.querySelector('.sidebar').append(b);b.onclick=async()=>{await db.auth.signOut();showLogin();};}
+     await setupCloudAdmin();
+   }
+   db.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT')showLogin();});await check();
+ }
+ let installed=false;
+ async function setupCloudAdmin(){if(!installed){installed=true;
+   // Substitui somente os módulos locais de categorias e banners por interfaces conectadas.
+   const cat=document.querySelector('#categoriesView');
+   cat.innerHTML=`<h1>Categorias</h1><p class="admin-sub">Dados reais do Supabase.</p><div class="admin-panel"><form id="cloudCatForm" class="admin-form"><input type="hidden" name="id"><label>Nome<input name="name" required maxlength="65"></label><label>Descrição<input name="description" maxlength="100"></label><label>Ordem<input type="number" name="display_order" value="0"></label><label>Ativa<select name="is_active"><option value="true">Sim</option><option value="false">Não</option></select></label><div class="span2 admin-actions"><button>Salvar categoria</button><button type="reset">Limpar</button></div></form><p id="cloudCatMessage" role="status"></p></div><div class="admin-panel" id="cloudCatList"></div>`;
+   const ban=document.querySelector('#bannersView');
+   ban.innerHTML=`<h1>Banners</h1><p class="admin-sub">Imagens e links armazenados no Supabase.</p><div class="admin-tabs"><button id="cloudTabMain" class="selected">Banners principais</button><button id="cloudTabCat">Banners de categorias</button></div><div id="cloudMain"><div class="admin-panel"><form id="cloudBannerForm" class="admin-form"><input name="id" type="hidden"><label>Título<input name="title" required></label><label>Link<input name="link_url" placeholder="https://... ou #produtos"></label><label>Ordem<input name="display_order" type="number" value="0"></label><label>Ativo<select name="is_active"><option value="true">Sim</option><option value="false">Não</option></select></label><label class="span2">Imagem<input type="file" name="image" accept="image/png,image/jpeg,image/webp"></label><div class="span2 admin-actions"><button>Salvar banner</button><button type="reset">Limpar</button></div></form><p id="cloudBannerMessage" role="status"></p></div><div class="admin-panel" id="cloudBannerList"></div></div><div id="cloudCategoryBanners" class="admin-panel" hidden></div>`;
+   const tab=(cat)=>{document.querySelector('#cloudMain').hidden=cat;document.querySelector('#cloudCategoryBanners').hidden=!cat;document.querySelector('#cloudTabMain').classList.toggle('selected',!cat);document.querySelector('#cloudTabCat').classList.toggle('selected',cat);};
+   document.querySelector('#cloudTabMain').onclick=()=>tab(false);document.querySelector('#cloudTabCat').onclick=()=>tab(true);
+   document.querySelector('#cloudCatForm').onsubmit=async e=>{e.preventDefault();const f=e.currentTarget,m=document.querySelector('#cloudCatMessage');try{const name=f.elements.name.value.trim();const payload={name,slug:slug(name),description:f.elements.description.value.trim(),display_order:Number(f.elements.display_order.value),is_active:f.elements.is_active.value==='true'};if(f.elements.id.value)payload.id=f.elements.id.value;await save('categories',payload);f.reset();f.elements.id.value='';m.textContent='Categoria salva.';await refresh();}catch(x){m.textContent=x.message;}};
+   document.querySelector('#cloudBannerForm').onsubmit=async e=>{e.preventDefault();const f=e.currentTarget,m=document.querySelector('#cloudBannerMessage');try{const id=f.elements.id.value;const existing=(await list('banners')).find(b=>b.id===id);const file=f.elements.image.files[0];const image_path=file?await upload('banner-images',file):existing?.image_path;if(!image_path)throw Error('Selecione uma imagem.');const link=f.elements.link_url.value.trim();if(link&&!/^https?:\/\//i.test(link)&&!/^#[\w-]+$/.test(link))throw Error('Use um link https:// ou uma âncora #secao.');const payload={title:f.elements.title.value.trim(),link_url:link||null,display_order:Number(f.elements.display_order.value),is_active:f.elements.is_active.value==='true',image_path};if(id)payload.id=id;await save('banners',payload);f.reset();f.elements.id.value='';m.textContent='Banner salvo.';await refresh();}catch(x){m.textContent=x.message;}};
+ }
+ await refresh();}
+ async function refresh(){try{
+   const cats=(await list('categories')).sort((a,b)=>a.display_order-b.display_order);
+   const banners=(await list('banners')).sort((a,b)=>a.display_order-b.display_order);
+   const catHost=document.querySelector('#cloudCatList');catHost.replaceChildren();
+   for(const c of cats){const row=document.createElement('div');row.className='category-admin-row';row.innerHTML=`<div><strong>${escape(c.name)}</strong><small>${c.is_active?'Ativa':'Inativa'} · ${escape(c.slug)}</small></div><div class="admin-actions"><button class="edit">Editar</button><button class="delete">Excluir</button></div>`;row.querySelector('.edit').onclick=()=>{const f=document.querySelector('#cloudCatForm');for(const k of ['id','name','description','display_order'])f.elements[k].value=c[k]??'';f.elements.is_active.value=String(c.is_active);f.scrollIntoView({behavior:'smooth'});};row.querySelector('.delete').onclick=async()=>{if(!confirm(`Excluir ${c.name}? Categorias vinculadas a produtos não podem ser excluídas.`))return;try{await remove('categories',c.id);await refresh();}catch(x){alert(x.message);}};catHost.append(row);}
+   const bHost=document.querySelector('#cloudBannerList');bHost.replaceChildren();
+   for(const b of banners){const row=document.createElement('div');row.className='banner-admin-item';const img=document.createElement('img');img.src=urlFor('banner-images',b.image_path);img.alt='';img.style.cssText='width:150px;height:75px;object-fit:cover';const title=document.createElement('div');title.textContent=b.title+' · '+(b.is_active?'Ativo':'Inativo');const actions=document.createElement('div');actions.className='admin-actions';const edit=document.createElement('button');edit.textContent='Editar';edit.onclick=()=>{const f=document.querySelector('#cloudBannerForm');for(const k of ['id','title','link_url','display_order'])f.elements[k].value=b[k]??'';f.elements.is_active.value=String(b.is_active);f.scrollIntoView({behavior:'smooth'});};const del=document.createElement('button');del.textContent='Excluir';del.onclick=async()=>{if(confirm('Excluir este banner?')){try{await remove('banners',b.id);await refresh();}catch(x){alert(x.message);}}};actions.append(edit,del);row.append(img,title,actions);bHost.append(row);}
+   const cHost=document.querySelector('#cloudCategoryBanners');cHost.replaceChildren();
+   for(const c of cats){const row=document.createElement('div');row.className='category-admin-row';const title=document.createElement('strong');title.textContent=c.name;const img=document.createElement('img');img.style.cssText='width:90px;height:65px;object-fit:cover';if(c.image_path)img.src=urlFor('category-images',c.image_path);const input=document.createElement('input');input.type='file';input.accept='image/jpeg,image/png,image/webp';input.onchange=async()=>{try{const path=await upload('category-images',input.files[0]);await save('categories',{id:c.id,image_path:path});await refresh();}catch(x){alert(x.message);}};const del=document.createElement('button');del.textContent='Remover foto';del.disabled=!c.image_path;del.onclick=async()=>{try{await save('categories',{id:c.id,image_path:null});await refresh();}catch(x){alert(x.message);}};row.append(img,title,input,del);cHost.append(row);}
+ }catch(x){alert('Falha ao carregar dados do Supabase: '+x.message);}}
+ async function storefront(){
+   try{
+     const {data:cats,error:ce}=await db.from('categories').select('id,name,description,image_path,is_active,display_order').eq('is_active',true).order('display_order');if(ce)err(ce);
+     const {data:bs,error:be}=await db.from('banners').select('id,title,image_path,link_url,alt_text,is_active,display_order').eq('is_active',true).order('display_order');if(be)err(be);
+     // Categorias e banners são a fonte de verdade; dados demo não são gravados no Supabase.
+     const target=document.querySelector('#categoryGrid');if(target){target.replaceChildren();for(const c of cats){const button=document.createElement('button');button.className='category';const art=document.createElement('span');art.className='category-art';if(c.image_path){const img=document.createElement('img');img.src=urlFor('category-images',c.image_path);img.alt='';art.append(img);}else art.textContent='✦';const title=document.createElement('strong');title.textContent=c.name;const desc=document.createElement('small');desc.textContent=c.description||'';button.append(art,title,desc);button.onclick=()=>{document.querySelector('#produtos')?.scrollIntoView({behavior:'smooth'});};target.append(button);}}
+     const host=document.querySelector('#bannerSlides');if(host&&bs.length){const carousel=host.closest('.banner-carousel');const dots=document.querySelector('#bannerDots');host.replaceChildren();let index=0;for(const b of bs){const slide=document.createElement('a');slide.className='banner-slide banner-image-slide';slide.href=b.link_url||'#produtos';const img=document.createElement('img');img.src=urlFor('banner-images',b.image_path);img.alt=b.alt_text||b.title;slide.append(img);host.append(slide);}const slides=[...host.children];const draw=()=>{slides.forEach((s,i)=>{s.style.cssText=`display:block;position:absolute;inset:0;width:100%;height:100%;transition:transform .6s ease;transform:translateX(${(i-index)*100}%);visibility:visible`;});dots.replaceChildren();slides.forEach((_,i)=>{const d=document.createElement('button');d.className=i===index?'is-active':'';d.setAttribute('aria-label','Banner '+(i+1));d.onclick=()=>{index=i;draw();};dots.append(d);});};host.style.cssText='position:relative;overflow:hidden;aspect-ratio:2.82/1;min-height:200px';draw();document.querySelector('#bannerPrev').onclick=()=>{index=(index-1+slides.length)%slides.length;draw();};document.querySelector('#bannerNext').onclick=()=>{index=(index+1)%slides.length;draw();};setInterval(()=>{if(!document.hidden){index=(index+1)%slides.length;draw();}},5500);}
+   }catch(x){console.error('Naville: erro ao carregar vitrine',x);}
+ }
+ if(document.body.classList.contains('admin-body'))admin();else storefront();
+})();

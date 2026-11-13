@@ -29,10 +29,11 @@
    const layout=document.querySelector('.admin-layout');if(!layout)return;
    layout.hidden=true;
    const gate=document.createElement('div');gate.className='naville-auth';document.body.prepend(gate);
-   const showLogin=(message='')=>{layout.hidden=true;gate.hidden=false;gate.innerHTML=`<form id="cloudLogin"><img src="assets/logo.png" alt="Naville"><h1>Acesso administrativo</h1><p>Entre com sua conta autorizada.</p><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button>Entrar</button><p id="cloudAuthMessage" role="alert">${escape(message)}</p></form>`;gate.querySelector('form').onsubmit=async e=>{e.preventDefault();const f=e.currentTarget;const {error}=await db.auth.signInWithPassword({email:f.email.value,password:f.password.value});if(error){gate.querySelector('#cloudAuthMessage').textContent='Não foi possível entrar. Confira os dados.';return;}await check();};};
+   const showLogin=(message='')=>{layout.hidden=true;gate.hidden=false;gate.innerHTML=`<form id="cloudLogin"><img src="assets/logo.png" alt="Naville"><h1>Acesso administrativo</h1><p>Entre com sua conta autorizada.</p><label>E-mail<input name="email" type="email" autocomplete="username" required></label><label>Senha<input name="password" type="password" autocomplete="current-password" required></label><button>Entrar</button><p id="cloudAuthMessage" role="alert">${escape(message)}</p></form>`;gate.querySelector('form').onsubmit=async e=>{e.preventDefault();const f=e.currentTarget;const {error}=await db.auth.signInWithPassword({email:f.elements.email.value,password:f.elements.password.value});if(error){gate.querySelector('#cloudAuthMessage').textContent='Não foi possível entrar. Confira os dados.';return;}await check();};};
    async function check(){const {data:{user}}=await db.auth.getUser();if(!user){showLogin();return;}
      const {data,error}=await db.from('admin_users').select('role,is_active').eq('user_id',user.id).maybeSingle();
-     if(error||!data?.is_active){await db.auth.signOut();showLogin('Conta sem autorização administrativa.');return;}
+     if(error){console.error('Naville: erro ao consultar admin_users', {code:error.code,message:error.message});showLogin('Não foi possível verificar a autorização ('+(error.code||'erro de consulta')+'). Confira as permissões da tabela admin_users.');return;}
+     if(!data?.is_active){await db.auth.signOut();showLogin('Conta sem autorização administrativa.');return;}
      gate.hidden=true;layout.hidden=false;
      document.querySelector('.admin-caption').textContent='PAINEL · SUPABASE';
      document.querySelector('.admin-sub').textContent='Sessão administrativa autenticada';

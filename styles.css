@@ -35,3 +35,10 @@
   .banner-original .hero-art{min-height:0}
   .banner-original .hero-label{font-size:7px;right:10px;bottom:12px}
 }
+
+/* v1.4 — transição horizontal contínua entre banners */
+.banner-slides{position:relative;overflow:hidden;height:100%}
+.banner-slide,.banner-slide.is-active,.banner-image-slide.is-active{position:absolute;inset:0;display:block;width:100%;height:100%;margin:0;will-change:transform}
+.banner-slide.hero,.banner-slide.hero.is-active{display:grid;grid-template-columns:1fr 1fr}
+.banner-slide:not(.is-active){pointer-events:none}
+@media(prefers-reduced-motion:reduce){.banner-slide{transition:none!important}}

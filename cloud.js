@@ -40,6 +40,7 @@
      document.querySelector('.notice').textContent='Categorias e banners conectados ao Supabase. Produtos e estoque ainda são demonstrativos; não utilize este painel para vendas reais.';
      if(!document.querySelector('#cloudLogout')){const b=document.createElement('button');b.id='cloudLogout';b.textContent='Sair da conta';document.querySelector('.sidebar').append(b);b.onclick=async()=>{await db.auth.signOut();showLogin();};}
      await setupCloudAdmin();
+     if(window.setupNavilleProducts) await window.setupNavilleProducts(db);
    }
    db.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT')showLogin();});await check();
  }

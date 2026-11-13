@@ -3,3 +3,35 @@
 
 /* Banners: carrossel principal */
 .banner-carousel{position:relative;background:var(--pale);overflow:hidden}.banner-slides{position:relative;min-height:560px}.banner-slide{display:none;width:100%;min-height:560px}.banner-slide.is-active{display:grid}.banner-image-slide.is-active{display:block;height:min(37vw,700px);min-height:280px;max-height:700px}.banner-image-slide img{width:100%;height:100%;object-fit:cover;display:block}.banner-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:2;width:44px;height:44px;border:1px solid #ffffff90;border-radius:50%;background:#f8f7f1d9;color:var(--ink);font-size:30px;display:grid;place-items:center}.banner-prev{left:18px}.banner-next{right:18px}.banner-dots{position:absolute;bottom:17px;left:50%;transform:translateX(-50%);z-index:2;display:flex;gap:10px}.banner-dots button{width:9px;height:9px;border:1px solid var(--ink);border-radius:50%;background:#f8f7f1;opacity:.8;padding:0}.banner-dots button.is-active{background:var(--ink)}.banner-empty{min-height:300px;display:grid;place-items:center}.banner-admin-list{display:grid;gap:14px}.banner-admin-item{display:grid;grid-template-columns:150px 1fr auto;align-items:center;gap:20px;border-bottom:1px solid var(--line);padding:12px 0}.banner-admin-preview{background:var(--pale);min-height:70px;display:grid;place-items:center;font-size:12px;color:var(--muted)}.banner-admin-preview img{width:150px;height:75px;object-fit:cover}.banner-admin-item small{display:block;margin-top:7px;color:var(--muted);overflow-wrap:anywhere}.banner-admin-item .admin-actions button{background:var(--cream);color:var(--ink);border:1px solid var(--line)}@media(max-width:900px){.banner-slides,.banner-slide{min-height:0}.banner-slide.is-active.hero{display:grid}.banner-image-slide.is-active{height:45vw;min-height:230px}.banner-admin-item{grid-template-columns:100px 1fr}.banner-admin-item .admin-actions{grid-column:1/-1}.banner-admin-preview img{width:100px;height:60px}}@media(max-width:600px){.banner-image-slide.is-active{height:65vw;min-height:200px}.banner-arrow{width:32px;height:32px;font-size:24px}.banner-prev{left:7px}.banner-next{right:7px}}
+
+/* v1.2 — todos os slides têm exatamente o mesmo enquadramento.
+   Imagens de proporções diferentes são ampliadas até preencher a área;
+   as bordas excedentes são recortadas (object-fit: cover). */
+.banner-carousel{width:100%;aspect-ratio:2.82 / 1;min-height:0}
+.banner-slides{width:100%;height:100%;min-height:0}
+.banner-slide,.banner-image-slide.is-active,.banner-slide.is-active{width:100%;height:100%;min-height:0;max-height:none}
+.banner-image-slide.is-active{display:block}
+.banner-image-slide img{display:block;width:100%;height:100%;object-fit:cover;object-position:center center}
+.banner-original.is-active{grid-template-columns:1fr 1fr}
+.banner-original .hero-copy{padding:clamp(24px,4vw,80px) clamp(30px,9vw,170px)}
+.banner-original .hero-art{min-height:0;height:100%}
+.banner-original h1{font-size:clamp(32px,4.7vw,84px)}
+@media(max-width:900px){
+  .banner-carousel{aspect-ratio:2.1 / 1}
+  .banner-original.is-active{grid-template-columns:1fr 1fr}
+  .banner-original .hero-copy{padding:24px 5vw}
+  .banner-original h1{font-size:clamp(24px,4vw,46px)}
+  .banner-original p{font-size:13px;line-height:1.4;margin:12px 0}
+  .banner-original .hero-art{min-height:0}
+}
+@media(max-width:600px){
+  .banner-carousel{aspect-ratio:1.45 / 1}
+  .banner-original.is-active{grid-template-columns:1fr 1fr}
+  .banner-original .hero-copy{padding:15px 7vw 15px 10vw}
+  .banner-original h1{font-size:clamp(19px,5vw,32px)}
+  .banner-original .eyebrow{font-size:8px}
+  .banner-original p{font-size:10px;line-height:1.35;margin:8px 0}
+  .banner-original .button{font-size:10px;padding:9px}
+  .banner-original .hero-art{min-height:0}
+  .banner-original .hero-label{font-size:7px;right:10px;bottom:12px}
+}

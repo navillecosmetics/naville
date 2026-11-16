@@ -3,7 +3,7 @@ window.setupNavilleProducts = async function(db) {
  const host=document.querySelector('#productsView');
  if(!host || host.dataset.cloudReady)return;
  host.dataset.cloudReady='1';
- host.innerHTML=`<h1>Produtos e estoque</h1><p class="admin-sub">Cadastro manual conectado ao Supabase. Produtos novos começam inativos.</p>
+ host.innerHTML=`<h1>Produtos e estoque</h1><p class="admin-sub">Cadastro manual conectado ao banco de dados. Produtos novos começam inativos.</p>
  <div class="admin-panel"><h2 id="npTitle">Novo produto</h2><form id="npForm" class="admin-form">
  <input name="id" type="hidden"><label>Nome do produto<input name="name" required maxlength="100"></label>
  <label>Marca (opcional)<select name="brand_id"></select></label><label>Categoria<select name="category_id" required></select></label>
@@ -26,6 +26,26 @@ window.setupNavilleProducts = async function(db) {
  const query=async(p)=>{const {data,error}=await p;if(error)throw Error(error.message);return data;};
  const val=(name)=>f.elements[name].value.trim();
  const optionalNum=name=>val(name)===''?null:Number(val(name));
+ const confirmProductRemoval=(productName)=>new Promise(resolve=>{
+  const overlay=document.createElement('div');
+  overlay.setAttribute('role','presentation');
+  overlay.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.48);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;';
+  const panel=document.createElement('div');
+  panel.setAttribute('role','alertdialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','navilleDeleteTitle');panel.setAttribute('aria-describedby','navilleDeleteDesc');
+  panel.style.cssText='background:#fff;color:#20211f;width:min(100%,440px);border-radius:18px;padding:30px;box-shadow:0 18px 60px rgba(0,0,0,.18);box-sizing:border-box;font-family:inherit;';
+  const title=document.createElement('h2');title.id='navilleDeleteTitle';title.textContent='Excluir produto?';title.style.cssText='font-size:27px;line-height:1.2;font-weight:500;margin:0 0 14px;';
+  const desc=document.createElement('p');desc.id='navilleDeleteDesc';desc.style.cssText='font-size:14px;line-height:1.6;margin:0 0 24px;color:#51534e;';
+  const strong=document.createElement('strong');strong.textContent=productName;desc.append('Deseja excluir ',strong,'? O produto será retirado da loja e da listagem administrativa. O histórico será preservado no banco de dados.');
+  const actions=document.createElement('div');actions.style.cssText='display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;';
+  const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancelar';cancel.style.cssText='padding:12px 20px;border:1px solid #d6d9d0;background:#fff;color:#222;border-radius:9px;cursor:pointer;font:inherit;';
+  const accept=document.createElement('button');accept.type='button';accept.textContent='Excluir produto';accept.style.cssText='padding:12px 20px;border:1px solid #20211f;background:#20211f;color:#fff;border-radius:9px;cursor:pointer;font:inherit;';
+  actions.append(cancel,accept);panel.append(title,desc,actions);overlay.append(panel);
+  const prior=document.activeElement;
+  const finish=(yes)=>{document.removeEventListener('keydown',keyHandler,true);overlay.remove();if(prior&&prior.isConnected)prior.focus();resolve(yes);};
+  const keyHandler=e=>{if(e.key==='Escape'){e.preventDefault();finish(false);}else if(e.key==='Tab'){const target=e.shiftKey?accept:cancel;if(document.activeElement===(e.shiftKey?cancel:accept)){e.preventDefault();target.focus();}}};
+  cancel.onclick=()=>finish(false);accept.onclick=()=>finish(true);overlay.onclick=e=>{if(e.target===overlay)finish(false);};
+  document.addEventListener('keydown',keyHandler,true);document.body.append(overlay);cancel.focus();
+ });
  const reset=()=>{f.reset();f.elements.id.value='';host.querySelector('#npTitle').textContent='Novo produto';f.elements.initial_stock.disabled=false;message.textContent='';};
  host.querySelector('#npCancel').onclick=reset;
  async function choices(){const [brands,cats]=await Promise.all([query(db.from('brands').select('id,name').order('name')),query(db.from('categories').select('id,name').order('name'))]);for(const [name,items] of [['brand_id',brands],['category_id',cats]]){const sel=f.elements[name],prior=sel.value;sel.replaceChildren(new Option('Selecione...', ''));for(const x of items)sel.add(new Option(x.name,x.id));sel.value=prior;}}
@@ -36,7 +56,7 @@ window.setupNavilleProducts = async function(db) {
  remove.type='button';remove.textContent='Excluir';remove.style.cssText='color:#9b2525;border-color:#c78a8a;margin-left:6px';
  remove.setAttribute('aria-label','Excluir produto '+p.name);
  remove.onclick=async()=>{
-  const confirmed=confirm('Excluir "'+p.name+'"? O produto sairá da loja e da listagem administrativa. Seus dados e histórico serão preservados no Supabase para segurança. Esta ação não poderá ser desfeita pelo painel.');
+  const confirmed=await confirmProductRemoval(p.name);
   if(!confirmed)return;
   remove.disabled=true;
   try{
@@ -44,7 +64,7 @@ window.setupNavilleProducts = async function(db) {
    if(f.elements.id.value===p.id)reset();
    await refresh();
    message.textContent='Produto excluído da listagem e retirado da loja.';
-  }catch(e){alert('Não foi possível excluir o produto: '+e.message);remove.disabled=false;}
+  }catch(e){message.textContent='Não foi possível excluir o produto: '+e.message;remove.disabled=false;}
  };
  td.append(edit,' ',adjust,' ',remove);tr.append(td);body.append(tr);}table.append(body);host.querySelector('#npRows').replaceChildren(table);
  }
@@ -58,7 +78,7 @@ window.setupNavilleProducts = async function(db) {
  const variant=existing?await query(db.from('product_variants').update(variantPayload).eq('id',existing.id).select('id').single()):await query(db.from('product_variants').insert(variantPayload).select('id').single());
  if(!id){const initial=Number(val('initial_stock')||0);if(!Number.isInteger(initial)||initial<0)throw Error('Estoque inicial inválido.');if(initial>0)await query(db.rpc('naville_adjust_inventory',{p_variant_id:variant.id,p_delta:initial,p_notes:'Estoque inicial no cadastro'}));}
  if(file){const ext=file.type==='image/jpeg'?'jpg':file.type==='image/png'?'png':'webp';uploaded=`${saved.id}/${crypto.randomUUID()}.${ext}`;await query(db.storage.from('product-images').upload(uploaded,file,{contentType:file.type}));const old=cache.find(p=>p.id===saved.id)?.image; if(old)await query(db.from('product_images').update({storage_path:uploaded}).eq('id',old.id));else await query(db.from('product_images').insert({product_id:saved.id,storage_path:uploaded,is_primary:true}));}
- reset();await refresh();message.textContent='Produto salvo no Supabase. Confira a listagem.';
+ reset();await refresh();message.textContent='Produto salvo no banco de dados. Confira a listagem.';
  }catch(ex){message.textContent='Não foi possível concluir: '+ex.message+'. Se o produto apareceu na lista, revise os dados antes de tentar novamente.';console.error(ex);}finally{button.disabled=false;}};
  try{await refresh();}catch(e){message.textContent='Erro ao carregar produtos: '+e.message;}
 };

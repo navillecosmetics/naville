@@ -66,3 +66,22 @@
 
 /* Naville v2.0: controles de quantidade na sacola */
 .cart-line{flex:1;min-width:0}.cart-qty{display:flex;align-items:center;gap:13px;margin:10px 0}.cart-qty button{width:30px;height:30px;border:1px solid var(--line);background:#fff;text-decoration:none;font-size:18px}.cart-qty button:disabled{opacity:.4;cursor:not-allowed}.cart-warning{color:#a04433;font-size:12px;line-height:1.4}.cart-status{font-size:12px;line-height:1.5;color:var(--muted);margin:0 0 12px}.cart-thumb{flex-shrink:0}
+
+/* Naville — títulos principais com a tipografia da identidade visual.
+   Coloque Glitten-Regular.otf em /fonts/ no GitHub. */
+@font-face {
+  font-family: "Glitten";
+  src: url("fonts/Glitten-Regular.otf") format("opentype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+/* Não altera menus, botões, preços, descrições nem o painel administrativo. */
+.section-heading h2,
+.hero h1,
+.editorial h2,
+.newsletter h2,
+.detail-info h1,
+.account-shell > h1 {
+  font-family: "Glitten", Georgia, "Times New Roman", serif;
+}

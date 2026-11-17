@@ -46,6 +46,7 @@
    db.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT')showLogin();});await check();
  }
  let installed=false;
+ let catNav=null, bannerNav=null;
  async function setupCloudAdmin(){if(!installed){installed=true;
    // Substitui somente os módulos locais de categorias e banners por interfaces conectadas.
    const cat=document.querySelector('#categoriesView');
@@ -75,8 +76,8 @@
      form.addEventListener('reset',()=>{if(form.dataset.nvSaved==='1'){form.dataset.nvSaved='';setTimeout(showList,0);}});
      return {showEditor,showList};
    }
-   const catNav=installEditorNavigation(cat,'cloudCatForm','cloudCatList','categoria');
-   const bannerNav=installEditorNavigation(ban,'cloudBannerForm','cloudBannerList','banner');
+   catNav=installEditorNavigation(cat,'cloudCatForm','cloudCatList','categoria');
+   bannerNav=installEditorNavigation(ban,'cloudBannerForm','cloudBannerList','banner');
    // Navegação disponibilizada para os botões Editar e para o salvamento.
    window.nvCategoryNav=catNav;window.nvBannerNav=bannerNav;
    const navCss=document.createElement('style');navCss.textContent=`.nv-page-list-header{display:flex;justify-content:flex-end;align-items:center;margin:0 0 20px}.nv-create-button{background:#9caf9d!important;color:#fff!important;border:1px solid #9caf9d!important;border-radius:7px;padding:12px 20px;cursor:pointer}.nv-back-button{border:0;background:transparent;padding:8px 0 20px;cursor:pointer;font-size:14px}.nv-editor-screen>.admin-panel{margin-top:14px}.nv-editor-screen[hidden],.nv-list-screen[hidden]{display:none!important}`;document.head.append(navCss);

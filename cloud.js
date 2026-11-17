@@ -66,10 +66,11 @@
      const editorHeading=document.createElement('h2');editorHeading.textContent='Nova '+label;
      header.append(create);listWrapper.append(header,list);
      editorWrapper.append(back,editorHeading,panel);
-     section.append(listWrapper,editorWrapper);
-     function showEditor(editing){listWrapper.hidden=true;editorWrapper.hidden=false;editorHeading.textContent=(editing?'Editar ':'Nova ')+label;title.textContent=(editing?'Editar ':'Nova ')+label;section.scrollIntoView({block:'start'});}
-     function showList(){editorWrapper.hidden=true;listWrapper.hidden=false;title.textContent=label==='categoria'?'Categorias':'Banners';section.scrollIntoView({block:'start'});}
+     (label==='banner'?section.querySelector('#cloudMain'):section).append(listWrapper,editorWrapper);
+     function showEditor(editing){listWrapper.hidden=true;listWrapper.style.display='none';editorWrapper.hidden=false;editorWrapper.style.display='block';editorHeading.textContent=(editing?'Editar ':'Nova ')+label;title.textContent=(editing?'Editar ':'Nova ')+label;section.scrollIntoView({block:'start'});}
+     function showList(){editorWrapper.hidden=true;editorWrapper.style.display='none';listWrapper.hidden=false;listWrapper.style.display='block';title.textContent=label==='categoria'?'Categorias':'Banners';section.scrollIntoView({block:'start'});}
      create.onclick=()=>{form.reset();form.elements.id.value='';showEditor(false);};
+     showList();
      back.onclick=showList;
      form.addEventListener('reset',()=>{if(form.dataset.nvSaved==='1'){form.dataset.nvSaved='';setTimeout(showList,0);}});
      return {showEditor,showList};

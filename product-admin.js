@@ -17,10 +17,57 @@ window.setupNavilleProducts = async function(db) {
  <label>Estoque físico inicial (somente no cadastro)<input name="initial_stock" type="number" min="0" step="1" value="0"></label>
  <label>Ativo na loja<select name="is_active"><option value="false">Não — rascunho</option><option value="true">Sim</option></select></label>
  <label>Destaque<select name="is_featured"><option value="false">Não</option><option value="true">Sim</option></select></label>
- <label class="span2">Foto principal (JPG, PNG ou WebP, até 5 MB)<input name="image" type="file" accept="image/jpeg,image/png,image/webp"></label>
+ <div class="span2 np-gallery-field"><span>Fotos do produto (JPG, PNG ou WebP, até 5 MB por imagem)</span><div id="npGallery" class="np-gallery" aria-label="Galeria de imagens do produto"></div><input id="npImagesInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden><p class="np-gallery-help">Arraste as imagens ou clique para adicionar. Selecione uma foto para torná-la principal.</p></div>
  <div class="span2 admin-actions"><button type="submit" id="npSave">Salvar produto</button><button type="button" id="npCancel">Limpar / cancelar</button></div></form><p id="npMessage" role="status" class="admin-sub"></p></div>
  <div class="admin-panel"><h2>Produtos cadastrados</h2><p class="admin-sub">Excluir retira o produto da loja e desta lista, preservando o histórico no banco. O estoque é alterado somente pelo ajuste auditado abaixo.</p><div id="npRows"></div></div>`;
  const f=host.querySelector('#npForm'),message=host.querySelector('#npMessage');let cache=[];
+ let gallery=[],removedImageIds=[];
+ const galleryStyles=document.createElement('style');galleryStyles.textContent=`
+ .np-gallery-field{display:block}.np-gallery-field>span{display:block;margin-bottom:10px}
+ .np-gallery{display:flex;flex-wrap:wrap;gap:12px;align-items:stretch}
+ .np-gallery-card,.np-gallery-add{position:relative;width:132px;height:132px;border-radius:12px;box-sizing:border-box;overflow:hidden}
+ .np-gallery-card{border:1px solid #d9dedb;background:#f6f7f5}
+ .np-gallery-card img{width:100%;height:100%;object-fit:cover}
+ .np-gallery-card.is-primary{outline:2px solid #91a88b;outline-offset:2px}
+ .np-gallery-tag{position:absolute;top:6px;left:6px;background:#f6d78a;color:#28251d;border-radius:5px;padding:4px 6px;font-size:11px}
+ .np-gallery-tools{position:absolute;bottom:5px;left:5px;right:5px;display:flex;gap:4px}
+ .np-gallery-tools button{font:inherit;font-size:10px;padding:5px 6px;border-radius:5px;border:1px solid #d8dcda;background:#fff;color:#20211f;cursor:pointer;flex:1}
+ .np-gallery-add{border:2px dashed #b9bfbd;background:#f3f4f3;color:#535c5a;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:7px;cursor:pointer;text-align:center;font:inherit;font-size:12px}
+ .np-gallery-add strong{font-size:26px;font-weight:400;color:#8a9294}.np-gallery-add:hover,.np-gallery-add.dragging{background:#e9efeb;border-color:#7e9b87}
+ .np-gallery-help{font-size:12px;color:#69716e;margin:8px 0 0}
+ `;host.append(galleryStyles);
+ const fileInput=host.querySelector('#npImagesInput'),galleryRoot=host.querySelector('#npGallery');
+ const getImageUrl=path=>db.storage.from('product-images').getPublicUrl(path).data.publicUrl;
+ const clearGallery=()=>{for(const g of gallery)if(g.preview)URL.revokeObjectURL(g.preview);gallery=[];removedImageIds=[];renderGallery();};
+ function renderGallery(){
+  galleryRoot.replaceChildren();
+  gallery.forEach((g,i)=>{
+   const card=document.createElement('div');card.className='np-gallery-card'+(g.primary?' is-primary':'');
+   const img=document.createElement('img');img.src=g.preview||getImageUrl(g.storage_path);img.alt='Imagem '+(i+1);card.append(img);
+   if(g.primary){const tag=document.createElement('span');tag.className='np-gallery-tag';tag.textContent='Principal';card.append(tag);}
+   const tools=document.createElement('div');tools.className='np-gallery-tools';
+   if(!g.primary){const main=document.createElement('button');main.type='button';main.textContent='Tornar principal';main.onclick=()=>{gallery.forEach(x=>x.primary=false);g.primary=true;renderGallery();};tools.append(main);}
+   const remove=document.createElement('button');remove.type='button';remove.textContent='Remover';remove.setAttribute('aria-label','Remover imagem '+(i+1));remove.onclick=()=>{if(g.id)removedImageIds.push(g.id);if(g.preview)URL.revokeObjectURL(g.preview);gallery.splice(i,1);if(g.primary&&gallery.length)gallery[0].primary=true;renderGallery();};tools.append(remove);
+   card.append(tools);galleryRoot.append(card);
+  });
+  const add=document.createElement('button');add.type='button';add.className='np-gallery-add';
+  add.innerHTML='<strong aria-hidden="true">▧+</strong><span>Adicionar imagem</span>';
+  add.onclick=()=>fileInput.click();
+  for(const eventName of ['dragenter','dragover'])add.addEventListener(eventName,e=>{e.preventDefault();add.classList.add('dragging');});
+  add.addEventListener('dragleave',()=>add.classList.remove('dragging'));
+  add.addEventListener('drop',e=>{e.preventDefault();add.classList.remove('dragging');addFiles(e.dataTransfer.files);});
+  galleryRoot.append(add);
+ }
+ function addFiles(files){
+  const incoming=Array.from(files||[]);
+  for(const file of incoming){
+   if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024){message.textContent='Cada imagem deve ser JPG, PNG ou WebP e ter até 5 MB.';continue;}
+   gallery.push({file,preview:URL.createObjectURL(file),primary:gallery.length===0});
+  }
+  renderGallery();
+ }
+ fileInput.onchange=()=>{addFiles(fileInput.files);fileInput.value='';};
+ renderGallery();
  const slug=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
  const money=n=>Number(n).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
  const query=async(p)=>{const {data,error}=await p;if(error)throw Error(error.message);return data;};
@@ -65,10 +112,10 @@ window.setupNavilleProducts = async function(db) {
    panel.onsubmit=e=>{e.preventDefault();const value=Number(input.value);if(input.value.trim()===''||!Number.isSafeInteger(value)||value<reserved){error.textContent='Informe uma quantidade inteira igual ou superior ao estoque reservado ('+reserved+').';return;}finish({quantity:value});};
    document.addEventListener('keydown',onKey,true);document.body.append(overlay);input.focus();input.select();
   });
- const reset=()=>{f.reset();f.elements.id.value='';host.querySelector('#npTitle').textContent='Novo produto';f.elements.initial_stock.disabled=false;message.textContent='';};
+ const reset=()=>{clearGallery();f.reset();f.elements.id.value='';host.querySelector('#npTitle').textContent='Novo produto';f.elements.initial_stock.disabled=false;message.textContent='';};
  host.querySelector('#npCancel').onclick=reset;
  async function choices(){const [brands,cats]=await Promise.all([query(db.from('brands').select('id,name').order('name')),query(db.from('categories').select('id,name').order('name'))]);for(const [name,items] of [['brand_id',brands],['category_id',cats]]){const sel=f.elements[name],prior=sel.value;sel.replaceChildren(new Option('Selecione...', ''));for(const x of items)sel.add(new Option(x.name,x.id));sel.value=prior;}}
- async function refresh(){await choices();const [ps,vs,stocks,images,brands,cats]=await Promise.all([query(db.from('products').select('id,name,brand_id,category_id,description,sku,ean,price,compare_at_price,cost_price,weight_grams,is_active,is_featured,created_at,deleted_at').is('deleted_at',null).order('created_at',{ascending:false})),query(db.from('product_variants').select('id,product_id,name,sku,price,ean')),query(db.from('inventory').select('variant_id,quantity_on_hand,quantity_reserved')),query(db.from('product_images').select('product_id,storage_path,is_primary')),query(db.from('brands').select('id,name')),query(db.from('categories').select('id,name'))]);
+ async function refresh(){await choices();const [ps,vs,stocks,images,brands,cats]=await Promise.all([query(db.from('products').select('id,name,brand_id,category_id,description,sku,ean,price,compare_at_price,cost_price,weight_grams,is_active,is_featured,created_at,deleted_at').is('deleted_at',null).order('created_at',{ascending:false})),query(db.from('product_variants').select('id,product_id,name,sku,price,ean')),query(db.from('inventory').select('variant_id,quantity_on_hand,quantity_reserved')),query(db.from('product_images').select('id,product_id,storage_path,is_primary,display_order')),query(db.from('brands').select('id,name')),query(db.from('categories').select('id,name'))]);
  cache=ps.map(p=>({...p,variant:vs.find(v=>v.product_id===p.id),image:images.find(i=>i.product_id===p.id&&i.is_primary)||images.find(i=>i.product_id===p.id),brand:brands.find(b=>b.id===p.brand_id)?.name||'—',category:cats.find(c=>c.id===p.category_id)?.name||'—',variantCount:vs.filter(v=>v.product_id===p.id).length}));
  const stockMap=new Map(stocks.map(s=>[s.variant_id,s]));
  const root=host.querySelector('#npRows');
@@ -112,7 +159,7 @@ window.setupNavilleProducts = async function(db) {
   status.onclick=async()=>{status.disabled=true;const next=!p.is_active;try{const changed=await query(db.from('products').update({is_active:next}).eq('id',p.id).is('deleted_at',null).select('id,is_active').single());p.is_active=changed.is_active;status.className='np-status '+(p.is_active?'active':'inactive');status.textContent=p.is_active?'Ativo ▾':'Inativo ▾';status.title='Clique para '+(p.is_active?'desativar':'ativar')+' este produto';if(f.elements.id.value===p.id)f.elements.is_active.value=String(p.is_active);message.textContent='Produto '+(p.is_active?'ativado':'desativado')+' com sucesso.';}catch(e){message.textContent='Não foi possível alterar o status: '+e.message;}finally{status.disabled=false;}};
   statusTd.append(status);tr.append(statusTd);
   const td=document.createElement('td'),actions=document.createElement('div');actions.className='np-actions';
-  const edit=document.createElement('button');edit.type='button';edit.textContent='Editar';edit.onclick=()=>{reset();for(const key of ['id','name','brand_id','category_id','description','sku','ean','price','compare_at_price','cost_price','weight_grams','is_active','is_featured'])if(f.elements[key])f.elements[key].value=p[key]??'';f.elements.variant_name.value=p.variant?.name||'Padrão';f.elements.initial_stock.disabled=true;host.querySelector('#npTitle').textContent='Editar produto';f.scrollIntoView({behavior:'smooth'});};
+  const edit=document.createElement('button');edit.type='button';edit.textContent='Editar';edit.onclick=()=>{reset();gallery=images.filter(i=>i.product_id===p.id).sort((a,b)=>(a.display_order||0)-(b.display_order||0)).map(i=>({...i,primary:!!i.is_primary}));if(gallery.length&&!gallery.some(g=>g.primary))gallery[0].primary=true;renderGallery();for(const key of ['id','name','brand_id','category_id','description','sku','ean','price','compare_at_price','cost_price','weight_grams','is_active','is_featured'])if(f.elements[key])f.elements[key].value=p[key]??'';f.elements.variant_name.value=p.variant?.name||'Padrão';f.elements.initial_stock.disabled=true;host.querySelector('#npTitle').textContent='Editar produto';f.scrollIntoView({behavior:'smooth'});};
   const adjust=document.createElement('button');adjust.type='button';adjust.textContent='Alterar estoque';adjust.disabled=!p.variant;adjust.onclick=async()=>{
    try{const latest=await query(db.from('inventory').select('quantity_on_hand,quantity_reserved').eq('variant_id',p.variant.id).maybeSingle());const current=Number(latest?.quantity_on_hand??0),reserved=Number(latest?.quantity_reserved??0);const result=await requestStockQuantity(p.name+' ('+p.variant.name+')',current,reserved);if(!result)return;const delta=result.quantity-current;if(delta===0){message.textContent='O estoque já está em '+current+' unidade(s).';return;}await query(db.rpc('naville_adjust_inventory',{p_variant_id:p.variant.id,p_delta:delta,p_notes:'Alteração manual da quantidade total: '+current+' para '+result.quantity}));await refresh();message.textContent='Estoque atualizado para '+result.quantity+' unidade(s).';}catch(e){message.textContent='Estoque não alterado: '+e.message;}
   };
@@ -125,14 +172,35 @@ window.setupNavilleProducts = async function(db) {
 
  f.onsubmit=async e=>{e.preventDefault();const button=host.querySelector('#npSave');button.disabled=true;message.textContent='Salvando...';let uploaded=null;try{
  const id=val('id'),sku=val('sku'),name=val('name'),price=Number(val('price'));if(!name||price<=0||!val('category_id'))throw Error('Preencha nome, categoria e preço.');
- const file=f.elements.image.files[0];if(file){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024)throw Error('Imagem inválida ou maior que 5 MB.');}
+ 
  const payload={name,...(!id?{slug:(slug(name)||'produto')+'-'+crypto.randomUUID().slice(0,8)}:{}),description:val('description')||null,brand_id:val('brand_id')||null,category_id:val('category_id'),sku:sku||null,ean:val('ean')||null,price,compare_at_price:optionalNum('compare_at_price'),cost_price:optionalNum('cost_price'),weight_grams:optionalNum('weight_grams'),is_active:val('is_active')==='true',is_featured:val('is_featured')==='true'};
  const saved=id?await query(db.from('products').update(payload).eq('id',id).select('id').single()):await query(db.from('products').insert(payload).select('id').single());
  const variantPayload={product_id:saved.id,name:val('variant_name'),sku:sku||null,ean:val('ean')||null,price,compare_at_price:optionalNum('compare_at_price'),cost_price:optionalNum('cost_price'),weight_grams:optionalNum('weight_grams')};
  const existing=cache.find(p=>p.id===saved.id)?.variant;
  const variant=existing?await query(db.from('product_variants').update(variantPayload).eq('id',existing.id).select('id').single()):await query(db.from('product_variants').insert(variantPayload).select('id').single());
  if(!id){const initial=Number(val('initial_stock')||0);if(!Number.isInteger(initial)||initial<0)throw Error('Estoque inicial inválido.');if(initial>0)await query(db.rpc('naville_adjust_inventory',{p_variant_id:variant.id,p_delta:initial,p_notes:'Estoque inicial no cadastro'}));}
- if(file){const ext=file.type==='image/jpeg'?'jpg':file.type==='image/png'?'png':'webp';uploaded=`${saved.id}/${crypto.randomUUID()}.${ext}`;await query(db.storage.from('product-images').upload(uploaded,file,{contentType:file.type}));const old=cache.find(p=>p.id===saved.id)?.image; if(old)await query(db.from('product_images').update({storage_path:uploaded}).eq('id',old.id));else await query(db.from('product_images').insert({product_id:saved.id,storage_path:uploaded,is_primary:true}));}
+ // Grava novas fotos sem substituir ou apagar as já cadastradas.
+ const newRecords=[];
+ for(const g of gallery){
+  if(!g.file)continue;
+  const ext=g.file.type==='image/jpeg'?'jpg':g.file.type==='image/png'?'png':'webp';
+  const path=`${saved.id}/${crypto.randomUUID()}.${ext}`;
+  await query(db.storage.from('product-images').upload(path,g.file,{contentType:g.file.type}));
+  const record=await query(db.from('product_images').insert({product_id:saved.id,storage_path:path,is_primary:false,display_order:gallery.indexOf(g)}).select('id').single());
+  g.id=record.id;g.storage_path=path;newRecords.push(record.id);
+ }
+ // Remove apenas os vínculos marcados pelo usuário, após os uploads concluírem.
+ if(removedImageIds.length)await query(db.from('product_images').delete().in('id',removedImageIds).eq('product_id',saved.id));
+ // Atualiza ordem e foto principal; nenhuma foto antiga é substituída.
+ const main=gallery.find(g=>g.primary)||gallery[0];
+ if(main){
+  await query(db.from('product_images').update({is_primary:false}).eq('product_id',saved.id));
+  for(let i=0;i<gallery.length;i++){
+   const g=gallery[i];
+   await query(db.from('product_images').update({display_order:i,is_primary:g===main}).eq('id',g.id).eq('product_id',saved.id));
+  }
+ }
+
  reset();await refresh();message.textContent='Produto salvo no banco de dados. Confira a listagem.';
  }catch(ex){message.textContent='Não foi possível concluir: '+ex.message+'. Se o produto apareceu na lista, revise os dados antes de tentar novamente.';console.error(ex);}finally{button.disabled=false;}};
  try{await refresh();}catch(e){message.textContent='Erro ao carregar produtos: '+e.message;}

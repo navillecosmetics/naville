@@ -10,8 +10,8 @@ window.setupNavilleProducts = async function(db) {
  <label>Descrição<textarea name="description" rows="3"></textarea></label>
  <label>SKU (opcional, único quando informado)<input name="sku" maxlength="80"></label><label>EAN / código de barras (opcional)<input name="ean" maxlength="30"></label>
  <label>Apresentação / variação<input name="variant_name" required placeholder="Ex.: 250 ml, tom 01, padrão"></label>
- <label>Preço de venda (R$)<input name="price" type="number" min="0.01" step="0.01" required></label>
- <label>Preço anterior (opcional)<input name="compare_at_price" type="number" min="0" step="0.01"></label>
+ <label>Preço (R$)<input name="price" type="number" min="0.01" step="0.01" required></label>
+ <div class="np-discount-control"><label class="np-discount-toggle"><span>Desconto</span><input name="discount_enabled" type="checkbox" role="switch"><span class="np-switch-track" aria-hidden="true"></span></label><label id="npDiscountField" hidden>Valor com desconto (R$)<input name="discount_price" type="number" min="0.01" step="0.01" disabled></label></div>
  <label>Custo de compra (R$)<input name="cost_price" type="number" min="0" step="0.01"></label>
  <label>Peso (gramas)<input name="weight_grams" type="number" min="1" step="1"></label>
  <label>Estoque físico inicial (somente no cadastro)<input name="initial_stock" type="number" min="0" step="1" value="0"></label>
@@ -35,6 +35,20 @@ window.setupNavilleProducts = async function(db) {
  .np-gallery-add{border:2px dashed #b9bfbd;background:#f3f4f3;color:#535c5a;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:7px;cursor:pointer;text-align:center;font:inherit;font-size:12px}
  .np-gallery-add strong{font-size:26px;font-weight:400;color:#8a9294}.np-gallery-add:hover,.np-gallery-add.dragging{background:#e9efeb;border-color:#7e9b87}
  .np-gallery-help{font-size:12px;color:#69716e;margin:8px 0 0}
+ /* Upload principal: mesma proporção, fundo branco e contorno tracejado da referência */
+ #productsView .np-gallery{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+ #productsView .np-gallery-add{appearance:none!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:10px!important;width:160px;height:160px;min-width:160px;padding:16px!important;box-sizing:border-box;border:3px dashed #999!important;border-radius:26px!important;background:#fff!important;background-image:none!important;color:#222!important;box-shadow:none!important;text-align:center!important;cursor:pointer;font-family:inherit!important;font-size:14px!important;line-height:1.4!important;transition:border-color .15s ease,background-color .15s ease}
+ #productsView .np-gallery-add.np-gallery-add--empty{width:min(100%,470px)!important;height:440px!important;min-width:0!important;border:4px dashed #999!important;border-radius:44px!important;gap:12px!important}
+ #productsView .np-gallery-add .np-upload-icon{width:38px;height:38px;display:block;color:#959ca7}
+ #productsView .np-gallery-add .np-upload-title{font-weight:600;font-size:16px;color:#20211f}
+ #productsView .np-gallery-add.np-gallery-add--empty .np-upload-title{font-size:23px}
+ #productsView .np-gallery-add .np-upload-instruction{font-size:13px;color:#555}
+ #productsView .np-gallery-add.np-gallery-add--empty .np-upload-instruction{font-size:17px}
+ #productsView .np-gallery-add .np-upload-instruction b{color:#328dff;font-weight:600}
+ #productsView .np-gallery-add:hover,#productsView .np-gallery-add.dragging{background:#f9faf9!important;border-color:#777!important}
+ #productsView .np-gallery-card{width:160px;height:160px}
+ @media(max-width:540px){#productsView .np-gallery-add.np-gallery-add--empty{height:330px!important;border-radius:32px!important}}
+ 
  `;host.append(galleryStyles);
  const fileInput=host.querySelector('#npImagesInput'),galleryRoot=host.querySelector('#npGallery');
  const getImageUrl=path=>db.storage.from('product-images').getPublicUrl(path).data.publicUrl;
@@ -51,7 +65,8 @@ window.setupNavilleProducts = async function(db) {
    card.append(tools);galleryRoot.append(card);
   });
   const add=document.createElement('button');add.type='button';add.className='np-gallery-add';
-  add.innerHTML='<strong aria-hidden="true">▧+</strong><span>Adicionar imagem</span>';
+  add.classList.toggle('np-gallery-add--empty',gallery.length===0);
+  add.innerHTML='<svg class="np-upload-icon" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="4" y="7" width="31" height="29" rx="3" fill="currentColor"/><path d="M7 31l9-10 7 7 5-5 6 8" stroke="white" stroke-width="2.5" stroke-linejoin="round"/><circle cx="26" cy="16" r="3" fill="white"/><circle cx="36" cy="35" r="10" fill="white"/><path d="M36 28v14M29 35h14" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg><span class="np-upload-title">Adicionar imagem</span><span class="np-upload-instruction"><b>Clique para enviar</b> ou arraste e solte</span>';
   add.onclick=()=>fileInput.click();
   for(const eventName of ['dragenter','dragover'])add.addEventListener(eventName,e=>{e.preventDefault();add.classList.add('dragging');});
   add.addEventListener('dragleave',()=>add.classList.remove('dragging'));
@@ -68,6 +83,20 @@ window.setupNavilleProducts = async function(db) {
  }
  fileInput.onchange=()=>{addFiles(fileInput.files);fileInput.value='';};
  renderGallery();
+ const discountToggle=f.elements.discount_enabled,discountField=host.querySelector('#npDiscountField'),discountInput=f.elements.discount_price;
+ const discountStyle=document.createElement('style');discountStyle.textContent=`
+ .np-discount-control{display:flex;flex-direction:column;gap:10px;justify-content:center}
+ .np-discount-toggle{display:flex!important;flex-direction:row!important;align-items:center;gap:12px;cursor:pointer}
+ .np-discount-toggle input{position:absolute;opacity:0;width:1px;height:1px}
+ .np-switch-track{display:inline-block;width:40px;height:23px;background:#d7dcd8;border-radius:20px;position:relative;transition:background .15s}
+ .np-switch-track:after{content:"";position:absolute;left:3px;top:3px;width:17px;height:17px;background:white;border-radius:50%;transition:transform .15s}
+ .np-discount-toggle input:checked+.np-switch-track{background:#91a88b}
+ .np-discount-toggle input:checked+.np-switch-track:after{transform:translateX(17px)}
+ .np-discount-toggle input:focus-visible+.np-switch-track{outline:2px solid #20211f;outline-offset:3px}
+ #npDiscountField[hidden]{display:none!important}
+ `;host.append(discountStyle);
+ function syncDiscount(){const on=discountToggle.checked;discountField.hidden=!on;discountInput.disabled=!on;discountInput.required=on;if(!on)discountInput.value='';}
+ discountToggle.addEventListener('change',syncDiscount);syncDiscount();
  const slug=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
  const money=n=>Number(n).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
  const query=async(p)=>{const {data,error}=await p;if(error)throw Error(error.message);return data;};
@@ -112,7 +141,7 @@ window.setupNavilleProducts = async function(db) {
    panel.onsubmit=e=>{e.preventDefault();const value=Number(input.value);if(input.value.trim()===''||!Number.isSafeInteger(value)||value<reserved){error.textContent='Informe uma quantidade inteira igual ou superior ao estoque reservado ('+reserved+').';return;}finish({quantity:value});};
    document.addEventListener('keydown',onKey,true);document.body.append(overlay);input.focus();input.select();
   });
- const reset=()=>{clearGallery();f.reset();f.elements.id.value='';host.querySelector('#npTitle').textContent='Novo produto';f.elements.initial_stock.disabled=false;message.textContent='';};
+ const reset=()=>{clearGallery();f.reset();syncDiscount();f.elements.id.value='';host.querySelector('#npTitle').textContent='Novo produto';f.elements.initial_stock.disabled=false;message.textContent='';};
  host.querySelector('#npCancel').onclick=reset;
  async function choices(){const [brands,cats]=await Promise.all([query(db.from('brands').select('id,name').order('name')),query(db.from('categories').select('id,name').order('name'))]);for(const [name,items] of [['brand_id',brands],['category_id',cats]]){const sel=f.elements[name],prior=sel.value;sel.replaceChildren(new Option('Selecione...', ''));for(const x of items)sel.add(new Option(x.name,x.id));sel.value=prior;}}
  async function refresh(){await choices();const [ps,vs,stocks,images,brands,cats]=await Promise.all([query(db.from('products').select('id,name,brand_id,category_id,description,sku,ean,price,compare_at_price,cost_price,weight_grams,is_active,is_featured,created_at,deleted_at').is('deleted_at',null).order('created_at',{ascending:false})),query(db.from('product_variants').select('id,product_id,name,sku,price,ean')),query(db.from('inventory').select('variant_id,quantity_on_hand,quantity_reserved')),query(db.from('product_images').select('id,product_id,storage_path,is_primary,display_order')),query(db.from('brands').select('id,name')),query(db.from('categories').select('id,name'))]);
@@ -159,7 +188,10 @@ window.setupNavilleProducts = async function(db) {
   status.onclick=async()=>{status.disabled=true;const next=!p.is_active;try{const changed=await query(db.from('products').update({is_active:next}).eq('id',p.id).is('deleted_at',null).select('id,is_active').single());p.is_active=changed.is_active;status.className='np-status '+(p.is_active?'active':'inactive');status.textContent=p.is_active?'Ativo ▾':'Inativo ▾';status.title='Clique para '+(p.is_active?'desativar':'ativar')+' este produto';if(f.elements.id.value===p.id)f.elements.is_active.value=String(p.is_active);message.textContent='Produto '+(p.is_active?'ativado':'desativado')+' com sucesso.';}catch(e){message.textContent='Não foi possível alterar o status: '+e.message;}finally{status.disabled=false;}};
   statusTd.append(status);tr.append(statusTd);
   const td=document.createElement('td'),actions=document.createElement('div');actions.className='np-actions';
-  const edit=document.createElement('button');edit.type='button';edit.textContent='Editar';edit.onclick=()=>{reset();gallery=images.filter(i=>i.product_id===p.id).sort((a,b)=>(a.display_order||0)-(b.display_order||0)).map(i=>({...i,primary:!!i.is_primary}));if(gallery.length&&!gallery.some(g=>g.primary))gallery[0].primary=true;renderGallery();for(const key of ['id','name','brand_id','category_id','description','sku','ean','price','compare_at_price','cost_price','weight_grams','is_active','is_featured'])if(f.elements[key])f.elements[key].value=p[key]??'';f.elements.variant_name.value=p.variant?.name||'Padrão';f.elements.initial_stock.disabled=true;host.querySelector('#npTitle').textContent='Editar produto';f.scrollIntoView({behavior:'smooth'});};
+  const edit=document.createElement('button');edit.type='button';edit.textContent='Editar';edit.onclick=()=>{reset();gallery=images.filter(i=>i.product_id===p.id).sort((a,b)=>(a.display_order||0)-(b.display_order||0)).map(i=>({...i,primary:!!i.is_primary}));if(gallery.length&&!gallery.some(g=>g.primary))gallery[0].primary=true;renderGallery();for(const key of ['id','name','brand_id','category_id','description','sku','ean','cost_price','weight_grams','is_active','is_featured'])if(f.elements[key])f.elements[key].value=p[key]??'';const hasDiscount=p.compare_at_price!=null&&Number(p.compare_at_price)>Number(p.price);
+ f.elements.price.value=hasDiscount?p.compare_at_price:p.price;
+ discountToggle.checked=hasDiscount;syncDiscount();if(hasDiscount)discountInput.value=p.price;
+ f.elements.variant_name.value=p.variant?.name||'Padrão';f.elements.initial_stock.disabled=true;host.querySelector('#npTitle').textContent='Editar produto';f.scrollIntoView({behavior:'smooth'});};
   const adjust=document.createElement('button');adjust.type='button';adjust.textContent='Alterar estoque';adjust.disabled=!p.variant;adjust.onclick=async()=>{
    try{const latest=await query(db.from('inventory').select('quantity_on_hand,quantity_reserved').eq('variant_id',p.variant.id).maybeSingle());const current=Number(latest?.quantity_on_hand??0),reserved=Number(latest?.quantity_reserved??0);const result=await requestStockQuantity(p.name+' ('+p.variant.name+')',current,reserved);if(!result)return;const delta=result.quantity-current;if(delta===0){message.textContent='O estoque já está em '+current+' unidade(s).';return;}await query(db.rpc('naville_adjust_inventory',{p_variant_id:p.variant.id,p_delta:delta,p_notes:'Alteração manual da quantidade total: '+current+' para '+result.quantity}));await refresh();message.textContent='Estoque atualizado para '+result.quantity+' unidade(s).';}catch(e){message.textContent='Estoque não alterado: '+e.message;}
   };
@@ -171,11 +203,15 @@ window.setupNavilleProducts = async function(db) {
  }
 
  f.onsubmit=async e=>{e.preventDefault();const button=host.querySelector('#npSave');button.disabled=true;message.textContent='Salvando...';let uploaded=null;try{
- const id=val('id'),sku=val('sku'),name=val('name'),price=Number(val('price'));if(!name||price<=0||!val('category_id'))throw Error('Preencha nome, categoria e preço.');
+ const id=val('id'),sku=val('sku'),name=val('name'),basePrice=Number(val('price'));
+ const discounted=discountToggle.checked,discountPrice=discounted?Number(val('discount_price')):null;
+ if(!name||!Number.isFinite(basePrice)||basePrice<=0||!val('category_id'))throw Error('Preencha nome, categoria e preço.');
+ if(discounted&&(!Number.isFinite(discountPrice)||discountPrice<=0||discountPrice>=basePrice))throw Error('O valor com desconto deve ser maior que zero e menor que o preço original.');
+ const price=discounted?discountPrice:basePrice,compareAt=discounted?basePrice:null;
  
- const payload={name,...(!id?{slug:(slug(name)||'produto')+'-'+crypto.randomUUID().slice(0,8)}:{}),description:val('description')||null,brand_id:val('brand_id')||null,category_id:val('category_id'),sku:sku||null,ean:val('ean')||null,price,compare_at_price:optionalNum('compare_at_price'),cost_price:optionalNum('cost_price'),weight_grams:optionalNum('weight_grams'),is_active:val('is_active')==='true',is_featured:val('is_featured')==='true'};
+ const payload={name,...(!id?{slug:(slug(name)||'produto')+'-'+crypto.randomUUID().slice(0,8)}:{}),description:val('description')||null,brand_id:val('brand_id')||null,category_id:val('category_id'),sku:sku||null,ean:val('ean')||null,price,compare_at_price:compareAt,cost_price:optionalNum('cost_price'),weight_grams:optionalNum('weight_grams'),is_active:val('is_active')==='true',is_featured:val('is_featured')==='true'};
  const saved=id?await query(db.from('products').update(payload).eq('id',id).select('id').single()):await query(db.from('products').insert(payload).select('id').single());
- const variantPayload={product_id:saved.id,name:val('variant_name'),sku:sku||null,ean:val('ean')||null,price,compare_at_price:optionalNum('compare_at_price'),cost_price:optionalNum('cost_price'),weight_grams:optionalNum('weight_grams')};
+ const variantPayload={product_id:saved.id,name:val('variant_name'),sku:sku||null,ean:val('ean')||null,price,compare_at_price:compareAt,cost_price:optionalNum('cost_price'),weight_grams:optionalNum('weight_grams')};
  const existing=cache.find(p=>p.id===saved.id)?.variant;
  const variant=existing?await query(db.from('product_variants').update(variantPayload).eq('id',existing.id).select('id').single()):await query(db.from('product_variants').insert(variantPayload).select('id').single());
  if(!id){const initial=Number(val('initial_stock')||0);if(!Number.isInteger(initial)||initial<0)throw Error('Estoque inicial inválido.');if(initial>0)await query(db.rpc('naville_adjust_inventory',{p_variant_id:variant.id,p_delta:initial,p_notes:'Estoque inicial no cadastro'}));}

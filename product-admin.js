@@ -69,36 +69,60 @@ window.setupNavilleProducts = async function(db) {
  host.querySelector('#npCancel').onclick=reset;
  async function choices(){const [brands,cats]=await Promise.all([query(db.from('brands').select('id,name').order('name')),query(db.from('categories').select('id,name').order('name'))]);for(const [name,items] of [['brand_id',brands],['category_id',cats]]){const sel=f.elements[name],prior=sel.value;sel.replaceChildren(new Option('Selecione...', ''));for(const x of items)sel.add(new Option(x.name,x.id));sel.value=prior;}}
  async function refresh(){await choices();const [ps,vs,stocks,images,brands,cats]=await Promise.all([query(db.from('products').select('id,name,brand_id,category_id,description,sku,ean,price,compare_at_price,cost_price,weight_grams,is_active,is_featured,created_at,deleted_at').is('deleted_at',null).order('created_at',{ascending:false})),query(db.from('product_variants').select('id,product_id,name,sku,price,ean')),query(db.from('inventory').select('variant_id,quantity_on_hand,quantity_reserved')),query(db.from('product_images').select('product_id,storage_path,is_primary')),query(db.from('brands').select('id,name')),query(db.from('categories').select('id,name'))]);
- cache=ps.map(p=>({...p,variant:vs.find(v=>v.product_id===p.id),image:images.find(i=>i.product_id===p.id&&i.is_primary),brand:brands.find(b=>b.id===p.brand_id)?.name||'—',category:cats.find(c=>c.id===p.category_id)?.name||'—'}));const stockMap=new Map(stocks.map(s=>[s.variant_id,s]));
- const table=document.createElement('table');table.className='admin-table';table.innerHTML='<thead><tr><th>Produto</th><th>Marca / categoria</th><th>Preço</th><th>Estoque</th><th>Status</th><th>Ações</th></tr></thead>';const body=document.createElement('tbody');
- for(const p of cache){const tr=document.createElement('tr'),stock=stockMap.get(p.variant?.id);const cells=[p.name,p.brand+' / '+p.category,money(p.price),stock?`${stock.quantity_on_hand} (reservado ${stock.quantity_reserved})`:'—',p.is_active?'Ativo':'Rascunho'];for(const t of cells){const td=document.createElement('td');td.textContent=t;tr.append(td);}const td=document.createElement('td');const edit=document.createElement('button');edit.textContent='Editar';edit.onclick=()=>{reset();for(const key of ['id','name','brand_id','category_id','description','sku','ean','price','compare_at_price','cost_price','weight_grams','is_active','is_featured'])if(f.elements[key])f.elements[key].value=p[key]??'';f.elements.variant_name.value=p.variant?.name||'Padrão';f.elements.initial_stock.disabled=true;host.querySelector('#npTitle').textContent='Editar produto';f.scrollIntoView({behavior:'smooth'});};const adjust=document.createElement('button');adjust.textContent='Ajustar estoque';adjust.disabled=!p.variant;adjust.onclick=async()=>{
-    try{
-     const latest=await query(db.from('inventory').select('quantity_on_hand,quantity_reserved').eq('variant_id',p.variant.id).maybeSingle());
-     const current=Number(latest?.quantity_on_hand??0),reserved=Number(latest?.quantity_reserved??0);
-     const result=await requestStockQuantity(p.name+' ('+p.variant.name+')',current,reserved);
-     if(!result)return;
-     const delta=result.quantity-current;
-     if(delta===0){message.textContent='O estoque já está em '+current+' unidade(s).';return;}
-     // A RPC mantém o histórico auditável e valida a integridade do estoque.
-     await query(db.rpc('naville_adjust_inventory',{p_variant_id:p.variant.id,p_delta:delta,p_notes:'Alteração manual da quantidade total: '+current+' para '+result.quantity}));
-     await refresh();message.textContent='Estoque atualizado para '+result.quantity+' unidade(s).';
-    }catch(e){message.textContent='Estoque não alterado: '+e.message;}
-   };const remove=document.createElement('button');
- remove.type='button';remove.textContent='Excluir';remove.style.cssText='color:#9b2525;border-color:#c78a8a;margin-left:6px';
- remove.setAttribute('aria-label','Excluir produto '+p.name);
- remove.onclick=async()=>{
-  const confirmed=await confirmProductRemoval(p.name);
-  if(!confirmed)return;
-  remove.disabled=true;
-  try{
-   await query(db.rpc('naville_archive_product',{p_product_id:p.id}));
-   if(f.elements.id.value===p.id)reset();
-   await refresh();
-   message.textContent='Produto excluído da listagem e retirado da loja.';
-  }catch(e){message.textContent='Não foi possível excluir o produto: '+e.message;remove.disabled=false;}
- };
- td.append(edit,' ',adjust,' ',remove);tr.append(td);body.append(tr);}table.append(body);host.querySelector('#npRows').replaceChildren(table);
+ cache=ps.map(p=>({...p,variant:vs.find(v=>v.product_id===p.id),image:images.find(i=>i.product_id===p.id&&i.is_primary)||images.find(i=>i.product_id===p.id),brand:brands.find(b=>b.id===p.brand_id)?.name||'—',category:cats.find(c=>c.id===p.category_id)?.name||'—',variantCount:vs.filter(v=>v.product_id===p.id).length}));
+ const stockMap=new Map(stocks.map(s=>[s.variant_id,s]));
+ const root=host.querySelector('#npRows');
+ if(!document.getElementById('navilleProductTableStyles')){const style=document.createElement('style');style.id='navilleProductTableStyles';style.textContent=`
+ .np-table-wrap{width:100%;overflow-x:auto}.np-product-table{width:100%;border-collapse:collapse;min-width:980px;font:inherit;color:#29302d}
+ .np-product-table th{padding:14px 10px;text-align:left;font-size:12px;font-weight:600;color:#5e6871;border-bottom:1px solid #dce0df;white-space:nowrap}
+ .np-product-table td{padding:12px 10px;border-bottom:1px solid #e5e8e7;vertical-align:middle;font-size:13px}
+ .np-product-table .np-product-info{display:flex;align-items:center;gap:15px;min-width:230px}
+ .np-product-table .np-photo{width:70px;height:82px;flex:0 0 70px;object-fit:cover;background:#f0f0ed;border-radius:3px}
+ .np-product-table .np-photo-missing{width:70px;height:82px;display:grid;place-items:center;background:#f1f1ed;color:#8b918d;font-size:11px;text-align:center}
+ .np-product-table .np-product-name{font-weight:500;line-height:1.4}.np-product-table .np-variants{display:inline-block;background:#edf0f2;padding:4px 7px;border-radius:4px;margin-top:7px;font-size:11px;color:#53606a}
+ .np-product-table .np-price-old{display:block;text-decoration:line-through;color:#8c9298;font-size:12px}.np-product-table .np-price-current{font-weight:500;white-space:nowrap}
+ .np-product-table .np-discount{font-size:11px;background:#e9eef7;border-radius:3px;padding:3px 5px;margin-left:5px;color:#495c76}
+ .np-product-table .np-status{border:0;border-radius:5px;padding:9px 12px;font-size:12px;font-weight:600;cursor:pointer;min-width:90px}
+ .np-product-table .np-status.active{background:#18a88a;color:#fff}.np-product-table .np-status.inactive{background:#e8ecea;color:#505b56}
+ .np-product-table .np-status:disabled{opacity:.55;cursor:wait}
+ .np-product-table .np-actions{display:flex;gap:6px;flex-wrap:wrap}.np-product-table .np-actions button{padding:7px 9px;font-size:12px;border-radius:5px;white-space:nowrap}
+ .np-product-table input[type=checkbox]{accent-color:#20211f;width:15px;height:15px}
+ `;document.head.append(style);}
+ const table=document.createElement('table');table.className='np-product-table';
+ table.innerHTML='<thead><tr><th><input type="checkbox" aria-label="Selecionar todos os produtos" class="np-select-all"></th><th>Código</th><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Vendas</th><th>Status</th><th>Ações</th></tr></thead>';
+ const body=document.createElement('tbody');const checks=[];
+ const cell=(tr,text)=>{const td=document.createElement('td');td.textContent=text;tr.append(td);return td;};
+ for(const p of cache){
+  const tr=document.createElement('tr');const stock=stockMap.get(p.variant?.id);
+  const checkTd=document.createElement('td');const check=document.createElement('input');check.type='checkbox';check.setAttribute('aria-label','Selecionar '+p.name);checks.push(check);checkTd.append(check);tr.append(checkTd);
+  cell(tr,p.sku||p.variant?.sku||'—');
+  const productTd=document.createElement('td'),info=document.createElement('div');info.className='np-product-info';
+  if(p.image?.storage_path){const img=document.createElement('img');img.className='np-photo';img.alt='Foto de '+p.name;img.loading='lazy';img.src=db.storage.from('product-images').getPublicUrl(p.image.storage_path).data.publicUrl;img.onerror=()=>{img.replaceWith(Object.assign(document.createElement('div'),{className:'np-photo-missing',textContent:'Sem imagem'}));};info.append(img);}else{const missing=document.createElement('div');missing.className='np-photo-missing';missing.textContent='Sem imagem';info.append(missing);}
+  const details=document.createElement('div'),name=document.createElement('div');name.className='np-product-name';name.textContent=p.name;details.append(name);
+  if(p.variantCount>1){const variants=document.createElement('span');variants.className='np-variants';variants.textContent=p.variantCount+' variações';details.append(variants);}info.append(details);productTd.append(info);tr.append(productTd);
+  cell(tr,p.category);
+  const priceTd=document.createElement('td');const old=Number(p.compare_at_price),price=Number(p.price);
+  if(old>price){const oldLabel=document.createElement('span');oldLabel.className='np-price-old';oldLabel.textContent=money(old);priceTd.append(oldLabel);}
+  const now=document.createElement('span');now.className='np-price-current';now.textContent=money(price);priceTd.append(now);
+  if(old>price){const discount=document.createElement('span');discount.className='np-discount';discount.textContent=((old-price)/old*100).toFixed(2).replace('.',',')+'%';priceTd.append(discount);}tr.append(priceTd);
+  const productVariants=vs.filter(v=>v.product_id===p.id);const productStock=productVariants.reduce((sum,v)=>sum+Number(stockMap.get(v.id)?.quantity_on_hand||0),0);const reserved=productVariants.reduce((sum,v)=>sum+Number(stockMap.get(v.id)?.quantity_reserved||0),0);
+  const stockTd=cell(tr,productVariants.length?String(productStock):'—');if(reserved){const reservedLabel=document.createElement('small');reservedLabel.textContent=' ('+reserved+' reservado)';stockTd.append(reservedLabel);}
+  cell(tr,'—'); // Sem registros de pedidos confirmados: não simular vendas.
+  const statusTd=document.createElement('td'),status=document.createElement('button');status.type='button';status.className='np-status '+(p.is_active?'active':'inactive');status.textContent=p.is_active?'Ativo ▾':'Inativo ▾';status.title='Clique para '+(p.is_active?'desativar':'ativar')+' este produto';
+  status.onclick=async()=>{status.disabled=true;const next=!p.is_active;try{const changed=await query(db.from('products').update({is_active:next}).eq('id',p.id).is('deleted_at',null).select('id,is_active').single());p.is_active=changed.is_active;status.className='np-status '+(p.is_active?'active':'inactive');status.textContent=p.is_active?'Ativo ▾':'Inativo ▾';status.title='Clique para '+(p.is_active?'desativar':'ativar')+' este produto';if(f.elements.id.value===p.id)f.elements.is_active.value=String(p.is_active);message.textContent='Produto '+(p.is_active?'ativado':'desativado')+' com sucesso.';}catch(e){message.textContent='Não foi possível alterar o status: '+e.message;}finally{status.disabled=false;}};
+  statusTd.append(status);tr.append(statusTd);
+  const td=document.createElement('td'),actions=document.createElement('div');actions.className='np-actions';
+  const edit=document.createElement('button');edit.type='button';edit.textContent='Editar';edit.onclick=()=>{reset();for(const key of ['id','name','brand_id','category_id','description','sku','ean','price','compare_at_price','cost_price','weight_grams','is_active','is_featured'])if(f.elements[key])f.elements[key].value=p[key]??'';f.elements.variant_name.value=p.variant?.name||'Padrão';f.elements.initial_stock.disabled=true;host.querySelector('#npTitle').textContent='Editar produto';f.scrollIntoView({behavior:'smooth'});};
+  const adjust=document.createElement('button');adjust.type='button';adjust.textContent='Alterar estoque';adjust.disabled=!p.variant;adjust.onclick=async()=>{
+   try{const latest=await query(db.from('inventory').select('quantity_on_hand,quantity_reserved').eq('variant_id',p.variant.id).maybeSingle());const current=Number(latest?.quantity_on_hand??0),reserved=Number(latest?.quantity_reserved??0);const result=await requestStockQuantity(p.name+' ('+p.variant.name+')',current,reserved);if(!result)return;const delta=result.quantity-current;if(delta===0){message.textContent='O estoque já está em '+current+' unidade(s).';return;}await query(db.rpc('naville_adjust_inventory',{p_variant_id:p.variant.id,p_delta:delta,p_notes:'Alteração manual da quantidade total: '+current+' para '+result.quantity}));await refresh();message.textContent='Estoque atualizado para '+result.quantity+' unidade(s).';}catch(e){message.textContent='Estoque não alterado: '+e.message;}
+  };
+  const remove=document.createElement('button');remove.type='button';remove.textContent='Excluir';remove.style.cssText='color:#9b2525;border-color:#c78a8a';remove.setAttribute('aria-label','Excluir produto '+p.name);remove.onclick=async()=>{const confirmed=await confirmProductRemoval(p.name);if(!confirmed)return;remove.disabled=true;try{await query(db.rpc('naville_archive_product',{p_product_id:p.id}));if(f.elements.id.value===p.id)reset();await refresh();message.textContent='Produto excluído da listagem e retirado da loja.';}catch(e){message.textContent='Não foi possível excluir o produto: '+e.message;remove.disabled=false;}};
+  actions.append(edit,adjust,remove);td.append(actions);tr.append(td);body.append(tr);
  }
+ table.append(body);table.querySelector('.np-select-all').onchange=e=>{checks.forEach(c=>c.checked=e.target.checked);};
+ const wrap=document.createElement('div');wrap.className='np-table-wrap';wrap.append(table);root.replaceChildren(wrap);
+ }
+
  f.onsubmit=async e=>{e.preventDefault();const button=host.querySelector('#npSave');button.disabled=true;message.textContent='Salvando...';let uploaded=null;try{
  const id=val('id'),sku=val('sku'),name=val('name'),price=Number(val('price'));if(!name||price<=0||!val('category_id'))throw Error('Preencha nome, categoria e preço.');
  const file=f.elements.image.files[0];if(file){if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024)throw Error('Imagem inválida ou maior que 5 MB.');}

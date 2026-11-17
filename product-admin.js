@@ -38,16 +38,16 @@ window.setupNavilleProducts = async function(db) {
  /* Upload principal: mesma proporção, fundo branco e contorno tracejado da referência */
  #productsView .np-gallery{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
  #productsView .np-gallery-add{appearance:none!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:10px!important;width:160px;height:160px;min-width:160px;padding:16px!important;box-sizing:border-box;border:3px dashed #999!important;border-radius:26px!important;background:#fff!important;background-image:none!important;color:#222!important;box-shadow:none!important;text-align:center!important;cursor:pointer;font-family:inherit!important;font-size:14px!important;line-height:1.4!important;transition:border-color .15s ease,background-color .15s ease}
- #productsView .np-gallery-add.np-gallery-add--empty{width:min(100%,470px)!important;height:440px!important;min-width:0!important;border:4px dashed #999!important;border-radius:44px!important;gap:12px!important}
- #productsView .np-gallery-add .np-upload-icon{width:38px;height:38px;display:block;color:#959ca7}
+ #productsView .np-gallery-add.np-gallery-add--empty{width:150px!important;height:150px!important;min-width:150px!important;border:3px dashed #999!important;border-radius:18px!important;gap:5px!important;padding:9px!important}
+ #productsView .np-gallery-add .np-upload-icon{width:27px;height:27px;display:block;color:#959ca7}
  #productsView .np-gallery-add .np-upload-title{font-weight:600;font-size:16px;color:#20211f}
- #productsView .np-gallery-add.np-gallery-add--empty .np-upload-title{font-size:23px}
+ #productsView .np-gallery-add.np-gallery-add--empty .np-upload-title{font-size:13px;line-height:1.25}
  #productsView .np-gallery-add .np-upload-instruction{font-size:13px;color:#555}
- #productsView .np-gallery-add.np-gallery-add--empty .np-upload-instruction{font-size:17px}
+ #productsView .np-gallery-add.np-gallery-add--empty .np-upload-instruction{font-size:10px;line-height:1.3}
  #productsView .np-gallery-add .np-upload-instruction b{color:#328dff;font-weight:600}
  #productsView .np-gallery-add:hover,#productsView .np-gallery-add.dragging{background:#f9faf9!important;border-color:#777!important}
- #productsView .np-gallery-card{width:160px;height:160px}
- @media(max-width:540px){#productsView .np-gallery-add.np-gallery-add--empty{height:330px!important;border-radius:32px!important}}
+ #productsView .np-gallery-card{width:150px;height:150px}
+ @media(max-width:540px){#productsView .np-gallery-add.np-gallery-add--empty{width:150px!important;height:150px!important;border-radius:18px!important}}
  
  `;host.append(galleryStyles);
  const fileInput=host.querySelector('#npImagesInput'),galleryRoot=host.querySelector('#npGallery');

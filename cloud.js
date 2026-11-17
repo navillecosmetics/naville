@@ -36,8 +36,8 @@
      if(!data?.is_active){await db.auth.signOut();showLogin('Conta sem autorização administrativa.');return;}
      gate.hidden=true;layout.hidden=false;
      document.querySelector('.admin-caption').textContent='PAINEL · SUPABASE';
-     document.querySelector('.admin-sub').textContent='Sessão administrativa autenticada';
-     document.querySelector('.notice').textContent='Categorias e banners conectados ao Supabase. Produtos e estoque ainda são demonstrativos; não utilize este painel para vendas reais.';
+     document.querySelector('.admin-top').style.display='none';
+     document.querySelector('.admin-main > .notice').style.display='none';
      if(!document.querySelector('#cloudLogout')){const b=document.createElement('button');b.id='cloudLogout';b.textContent='Sair da conta';document.querySelector('.sidebar').append(b);b.onclick=async()=>{await db.auth.signOut();showLogin();};}
      await setupCloudAdmin();
      if(window.setupNavilleProducts) await window.setupNavilleProducts(db);

@@ -5,8 +5,8 @@ window.setupNavilleProducts = async function(db) {
  host.dataset.cloudReady='1';
  host.innerHTML=`<div id="npListHeader" class="np-list-header"><div><div class="np-breadcrumb">Produtos &nbsp; › &nbsp; Lista de produtos</div><h1>Lista de produtos</h1></div><button type="button" id="npNewProduct" class="np-new-button">+ Adicionar produto</button></div>
  <div id="npEditorHeader" hidden><button type="button" id="npBackProducts" class="np-back-button">← Voltar para produtos</button><h1 id="npPageTitle">Novo produto</h1></div>
- <div id="npFilters" class="admin-panel np-filter-panel"><div class="np-filter-title">Todos filtros</div><div class="np-filter-grid">
- <label>Código ou referência<input id="npFilterCode" type="search" placeholder="Pesquisar código"></label>
+ <div id="npFilters" class="admin-panel np-filter-panel"><div class="np-filter-grid">
+ <label>Código do produto<input id="npFilterCode" type="search" placeholder="Pesquisar código"></label>
  <label>Nome do produto<input id="npFilterName" type="search" placeholder="Pesquisar produto"></label>
  <label>Status<select id="npFilterStatus"><option value="">Todos</option><option value="active">Ativos</option><option value="inactive">Inativos</option></select></label>
  <label>Categoria<select id="npFilterCategory"><option value="">Todas</option></select></label>
@@ -156,7 +156,7 @@ window.setupNavilleProducts = async function(db) {
  #productsView .np-list-header{display:flex;justify-content:space-between;align-items:center;gap:20px;margin:0 0 24px}
  #productsView .np-list-header h1{margin:6px 0 0;font:600 29px/1.2 Arial,sans-serif}
  #productsView .np-breadcrumb{font:13px Arial,sans-serif;color:#929caa}
- #productsView .np-new-button{background:#1478df;color:#fff;border:0;border-radius:5px;padding:13px 18px;cursor:pointer;font:600 14px Arial,sans-serif}
+ #productsView .np-new-button{background:#9FB693;color:#20211f;border:0;border-radius:5px;padding:13px 18px;cursor:pointer;font:600 14px Arial,sans-serif}
  #productsView .np-filter-panel{padding:22px 24px;margin-bottom:20px;background:#fff}
  #productsView .np-filter-title{color:#1478df;font:600 14px Arial,sans-serif;border-bottom:1px solid #dce2e8;padding-bottom:13px;margin-bottom:20px}
  #productsView .np-filter-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 22px}
@@ -180,7 +180,7 @@ window.setupNavilleProducts = async function(db) {
   host.querySelectorAll('#npRows tbody tr').forEach(row=>{
    const p=cache.find(x=>x.id===row.dataset.productId);
    if(!p)return;
-   const sku=(p.sku||p.variant?.sku||'').toLocaleLowerCase('pt-BR');
+   const sku=String(p.product_code??'').toLocaleLowerCase('pt-BR');
    const matches=(!code||sku.includes(code.toLocaleLowerCase('pt-BR')))
     &&(!name||p.name.toLocaleLowerCase('pt-BR').includes(name.toLocaleLowerCase('pt-BR')))
     &&(!status||(status==='active' ? p.is_active : !p.is_active))
@@ -196,7 +196,7 @@ window.setupNavilleProducts = async function(db) {
   const reset=()=>{clearGallery();f.reset();syncDiscount();f.elements.id.value='';host.querySelector('#npTitle').textContent='Novo produto';f.elements.initial_stock.disabled=false;message.textContent='';};
  host.querySelector('#npCancel').onclick=()=>{reset();showProductScreen('list');};
  async function choices(){const [brands,cats]=await Promise.all([query(db.from('brands').select('id,name').order('name')),query(db.from('categories').select('id,name').order('name'))]);for(const [name,items] of [['brand_id',brands],['category_id',cats]]){const sel=f.elements[name],prior=sel.value;sel.replaceChildren(new Option('Selecione...', ''));for(const x of items)sel.add(new Option(x.name,x.id));sel.value=prior;}}
- async function refresh(){await choices();const [ps,vs,stocks,images,brands,cats]=await Promise.all([query(db.from('products').select('id,name,brand_id,category_id,description,sku,ean,price,compare_at_price,cost_price,weight_grams,is_active,is_featured,created_at,deleted_at').is('deleted_at',null).order('created_at',{ascending:false})),query(db.from('product_variants').select('id,product_id,name,sku,price,ean')),query(db.from('inventory').select('variant_id,quantity_on_hand,quantity_reserved')),query(db.from('product_images').select('id,product_id,storage_path,is_primary,display_order')),query(db.from('brands').select('id,name')),query(db.from('categories').select('id,name'))]);
+ async function refresh(){await choices();const [ps,vs,stocks,images,brands,cats]=await Promise.all([query(db.from('products').select('id,product_code,name,brand_id,category_id,description,sku,ean,price,compare_at_price,cost_price,weight_grams,is_active,is_featured,created_at,deleted_at').is('deleted_at',null).order('created_at',{ascending:false})),query(db.from('product_variants').select('id,product_id,name,sku,price,ean')),query(db.from('inventory').select('variant_id,quantity_on_hand,quantity_reserved')),query(db.from('product_images').select('id,product_id,storage_path,is_primary,display_order')),query(db.from('brands').select('id,name')),query(db.from('categories').select('id,name'))]);
  cache=ps.map(p=>({...p,variant:vs.find(v=>v.product_id===p.id),image:images.find(i=>i.product_id===p.id&&i.is_primary)||images.find(i=>i.product_id===p.id),brand:brands.find(b=>b.id===p.brand_id)?.name||'—',category:cats.find(c=>c.id===p.category_id)?.name||'—',variantCount:vs.filter(v=>v.product_id===p.id).length}));
  const stockMap=new Map(stocks.map(s=>[s.variant_id,s]));
  const root=host.querySelector('#npRows');
@@ -227,7 +227,7 @@ window.setupNavilleProducts = async function(db) {
  for(const p of cache){
   const tr=document.createElement('tr');tr.dataset.productId=p.id;const stock=stockMap.get(p.variant?.id);
   const checkTd=document.createElement('td');const check=document.createElement('input');check.type='checkbox';check.setAttribute('aria-label','Selecionar '+p.name);checks.push(check);checkTd.append(check);tr.append(checkTd);
-  cell(tr,p.sku||p.variant?.sku||'—');
+  cell(tr,p.product_code==null?'—':String(p.product_code));
   const productTd=document.createElement('td'),info=document.createElement('div');info.className='np-product-info';
   if(p.image?.storage_path){const img=document.createElement('img');img.className='np-photo';img.alt='Foto de '+p.name;img.loading='lazy';img.src=db.storage.from('product-images').getPublicUrl(p.image.storage_path).data.publicUrl;img.onerror=()=>{img.replaceWith(Object.assign(document.createElement('div'),{className:'np-photo-missing',textContent:'Sem imagem'}));};info.append(img);}else{const missing=document.createElement('div');missing.className='np-photo-missing';missing.textContent='Sem imagem';info.append(missing);}
   const details=document.createElement('div'),name=document.createElement('div');name.className='np-product-name';name.textContent=p.name;details.append(name);

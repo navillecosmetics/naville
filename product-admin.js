@@ -17,15 +17,15 @@ window.setupNavilleProducts = async function(db) {
  <input name="id" type="hidden"><label>Nome do produto<input name="name" required maxlength="100"></label>
  <label>Marca (opcional)<select name="brand_id"></select></label><label>Categoria<select name="category_id" required></select></label>
  <label>Descrição<textarea name="description" rows="3"></textarea></label>
- <label>SKU (opcional, único quando informado)<input name="sku" maxlength="80"></label><label>EAN / código de barras (opcional)<input name="ean" maxlength="30"></label>
+ <label>EAN / código de barras (opcional)<input name="ean" maxlength="30"></label>
  <label>Apresentação / variação<input name="variant_name" required placeholder="Ex.: 250 ml, tom 01, padrão"></label>
  <div class="np-price-column"><label>Preço (R$)<input name="price" type="number" min="0.01" step="0.01" required></label>
  <div class="np-discount-control"><label class="np-discount-toggle"><span>Desconto</span><input name="discount_enabled" type="checkbox" role="switch"><span class="np-switch-track" aria-hidden="true"></span></label><label id="npDiscountField" hidden>Valor com desconto (R$)<input name="discount_price" type="number" min="0.01" step="0.01" disabled></label></div>
- <label>Custo de compra (R$)<input name="cost_price" type="number" min="0" step="0.01"></label></div>
+ <label>Custo de compra (R$) (opcional)<input name="cost_price" type="number" min="0" step="0.01"></label></div>
  <label>Peso (gramas)<input name="weight_grams" type="number" min="1" step="1"></label>
  <label>Estoque físico inicial (somente no cadastro)<input name="initial_stock" type="number" min="0" step="1" value="0"></label>
- <label>Ativo na loja<select name="is_active"><option value="false">Não — rascunho</option><option value="true">Sim</option></select></label>
- <label>Destaque<select name="is_featured"><option value="false">Não</option><option value="true">Sim</option></select></label>
+ <label class="np-discount-toggle np-product-toggle"><span>Ativo na loja</span><input name="is_active" type="checkbox" role="switch"><span class="np-switch-track" aria-hidden="true"></span></label>
+ <label class="np-discount-toggle np-product-toggle"><span>Destaque</span><input name="is_featured" type="checkbox" role="switch"><span class="np-switch-track" aria-hidden="true"></span></label>
  <div class="span2 np-gallery-field"><span>Fotos do produto (JPG, PNG ou WebP, até 5 MB por imagem)</span><div id="npGallery" class="np-gallery" aria-label="Galeria de imagens do produto"></div><input id="npImagesInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden><p class="np-gallery-help">Arraste as imagens ou clique para adicionar. Selecione uma foto para torná-la principal.</p></div>
  <div class="span2 admin-actions"><button type="submit" id="npSave">Salvar produto</button><button type="button" id="npCancel">Limpar / cancelar</button></div></form><p id="npMessage" role="status" class="admin-sub"></p></div>
  <div id="npListPanel" class="admin-panel"><h2>Produtos cadastrados</h2><div id="npRows"></div></div>`;
@@ -241,10 +241,10 @@ window.setupNavilleProducts = async function(db) {
   const stockTd=cell(tr,productVariants.length?String(productStock):'—');if(reserved){const reservedLabel=document.createElement('small');reservedLabel.textContent=' ('+reserved+' reservado)';stockTd.append(reservedLabel);}
   cell(tr,'—'); // Sem registros de pedidos confirmados: não simular vendas.
   const statusTd=document.createElement('td'),status=document.createElement('button');status.type='button';status.className='np-status '+(p.is_active?'active':'inactive');status.textContent=p.is_active?'Ativo ▾':'Inativo ▾';status.title='Clique para '+(p.is_active?'desativar':'ativar')+' este produto';
-  status.onclick=async()=>{status.disabled=true;const next=!p.is_active;try{const changed=await query(db.from('products').update({is_active:next}).eq('id',p.id).is('deleted_at',null).select('id,is_active').single());p.is_active=changed.is_active;status.className='np-status '+(p.is_active?'active':'inactive');status.textContent=p.is_active?'Ativo ▾':'Inativo ▾';status.title='Clique para '+(p.is_active?'desativar':'ativar')+' este produto';if(f.elements.id.value===p.id)f.elements.is_active.value=String(p.is_active);message.textContent='Produto '+(p.is_active?'ativado':'desativado')+' com sucesso.';}catch(e){message.textContent='Não foi possível alterar o status: '+e.message;}finally{status.disabled=false;}};
+  status.onclick=async()=>{status.disabled=true;const next=!p.is_active;try{const changed=await query(db.from('products').update({is_active:next}).eq('id',p.id).is('deleted_at',null).select('id,is_active').single());p.is_active=changed.is_active;status.className='np-status '+(p.is_active?'active':'inactive');status.textContent=p.is_active?'Ativo ▾':'Inativo ▾';status.title='Clique para '+(p.is_active?'desativar':'ativar')+' este produto';if(f.elements.id.value===p.id)f.elements.is_active.checked=!!p.is_active;message.textContent='Produto '+(p.is_active?'ativado':'desativado')+' com sucesso.';}catch(e){message.textContent='Não foi possível alterar o status: '+e.message;}finally{status.disabled=false;}};
   statusTd.append(status);tr.append(statusTd);
   const td=document.createElement('td'),actions=document.createElement('div');actions.className='np-actions';
-  const edit=document.createElement('button');edit.type='button';edit.textContent='Editar';edit.onclick=()=>{reset();gallery=images.filter(i=>i.product_id===p.id).sort((a,b)=>(a.display_order||0)-(b.display_order||0)).map(i=>({...i,primary:!!i.is_primary}));if(gallery.length&&!gallery.some(g=>g.primary))gallery[0].primary=true;renderGallery();for(const key of ['id','name','brand_id','category_id','description','sku','ean','cost_price','weight_grams','is_active','is_featured'])if(f.elements[key])f.elements[key].value=p[key]??'';const hasDiscount=p.compare_at_price!=null&&Number(p.compare_at_price)>Number(p.price);
+  const edit=document.createElement('button');edit.type='button';edit.textContent='Editar';edit.onclick=()=>{reset();gallery=images.filter(i=>i.product_id===p.id).sort((a,b)=>(a.display_order||0)-(b.display_order||0)).map(i=>({...i,primary:!!i.is_primary}));if(gallery.length&&!gallery.some(g=>g.primary))gallery[0].primary=true;renderGallery();for(const key of ['id','name','brand_id','category_id','description','ean','cost_price','weight_grams'])if(f.elements[key])f.elements[key].value=p[key]??'';f.elements.is_active.checked=!!p.is_active;f.elements.is_featured.checked=!!p.is_featured;const hasDiscount=p.compare_at_price!=null&&Number(p.compare_at_price)>Number(p.price);
  f.elements.price.value=hasDiscount?p.compare_at_price:p.price;
  discountToggle.checked=hasDiscount;syncDiscount();if(hasDiscount)discountInput.value=p.price;
  f.elements.variant_name.value=p.variant?.name||'Padrão';f.elements.initial_stock.disabled=true;host.querySelector('#npTitle').textContent='Editar produto';host.querySelector('#npPageTitle').textContent='Editar produto';showProductScreen('editor');};
@@ -259,15 +259,15 @@ window.setupNavilleProducts = async function(db) {
  }
 
  f.onsubmit=async e=>{e.preventDefault();const button=host.querySelector('#npSave');button.disabled=true;message.textContent='Salvando...';let uploaded=null;try{
- const id=val('id'),sku=val('sku'),name=val('name'),basePrice=Number(val('price'));
+ const id=val('id'),name=val('name'),basePrice=Number(val('price'));
  const discounted=discountToggle.checked,discountPrice=discounted?Number(val('discount_price')):null;
  if(!name||!Number.isFinite(basePrice)||basePrice<=0||!val('category_id'))throw Error('Preencha nome, categoria e preço.');
  if(discounted&&(!Number.isFinite(discountPrice)||discountPrice<=0||discountPrice>=basePrice))throw Error('O valor com desconto deve ser maior que zero e menor que o preço original.');
  const price=discounted?discountPrice:basePrice,compareAt=discounted?basePrice:null;
  
- const payload={name,...(!id?{slug:(slug(name)||'produto')+'-'+crypto.randomUUID().slice(0,8)}:{}),description:val('description')||null,brand_id:val('brand_id')||null,category_id:val('category_id'),sku:sku||null,ean:val('ean')||null,price,compare_at_price:compareAt,cost_price:optionalNum('cost_price'),weight_grams:optionalNum('weight_grams'),is_active:val('is_active')==='true',is_featured:val('is_featured')==='true'};
+ const payload={name,...(!id?{slug:(slug(name)||'produto')+'-'+crypto.randomUUID().slice(0,8)}:{}),description:val('description')||null,brand_id:val('brand_id')||null,category_id:val('category_id'),ean:val('ean')||null,price,compare_at_price:compareAt,cost_price:optionalNum('cost_price'),weight_grams:optionalNum('weight_grams'),is_active:f.elements.is_active.checked,is_featured:f.elements.is_featured.checked};
  const saved=id?await query(db.from('products').update(payload).eq('id',id).select('id').single()):await query(db.from('products').insert(payload).select('id').single());
- const variantPayload={product_id:saved.id,name:val('variant_name'),sku:sku||null,ean:val('ean')||null,price,compare_at_price:compareAt,cost_price:optionalNum('cost_price'),weight_grams:optionalNum('weight_grams')};
+ const variantPayload={product_id:saved.id,name:val('variant_name'),ean:val('ean')||null,price,compare_at_price:compareAt,cost_price:optionalNum('cost_price'),weight_grams:optionalNum('weight_grams')};
  const existing=cache.find(p=>p.id===saved.id)?.variant;
  const variant=existing?await query(db.from('product_variants').update(variantPayload).eq('id',existing.id).select('id').single()):await query(db.from('product_variants').insert(variantPayload).select('id').single());
  if(!id){const initial=Number(val('initial_stock')||0);if(!Number.isInteger(initial)||initial<0)throw Error('Estoque inicial inválido.');if(initial>0)await query(db.rpc('naville_adjust_inventory',{p_variant_id:variant.id,p_delta:initial,p_notes:'Estoque inicial no cadastro'}));}

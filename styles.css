@@ -85,3 +85,13 @@
 .account-shell > h1 {
   font-family: "Glitten", Georgia, "Times New Roman", serif;
 }
+
+/* Naville — tipografia exclusivamente do painel administrativo.
+   A vitrine, as páginas públicas e a fonte Glitten não são alteradas. */
+body.admin-body,
+body.admin-body .admin-layout,
+body.admin-body .admin-layout *,
+body.admin-body .naville-auth,
+body.admin-body .naville-auth * {
+  font-family: Arial, Helvetica, sans-serif !important;
+}

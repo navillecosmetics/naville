@@ -10,9 +10,9 @@ window.setupNavilleProducts = async function(db) {
  <label>Descrição<textarea name="description" rows="3"></textarea></label>
  <label>SKU (opcional, único quando informado)<input name="sku" maxlength="80"></label><label>EAN / código de barras (opcional)<input name="ean" maxlength="30"></label>
  <label>Apresentação / variação<input name="variant_name" required placeholder="Ex.: 250 ml, tom 01, padrão"></label>
- <label>Preço (R$)<input name="price" type="number" min="0.01" step="0.01" required></label>
+ <div class="np-price-column"><label>Preço (R$)<input name="price" type="number" min="0.01" step="0.01" required></label>
  <div class="np-discount-control"><label class="np-discount-toggle"><span>Desconto</span><input name="discount_enabled" type="checkbox" role="switch"><span class="np-switch-track" aria-hidden="true"></span></label><label id="npDiscountField" hidden>Valor com desconto (R$)<input name="discount_price" type="number" min="0.01" step="0.01" disabled></label></div>
- <label>Custo de compra (R$)<input name="cost_price" type="number" min="0" step="0.01"></label>
+ <label>Custo de compra (R$)<input name="cost_price" type="number" min="0" step="0.01"></label></div>
  <label>Peso (gramas)<input name="weight_grams" type="number" min="1" step="1"></label>
  <label>Estoque físico inicial (somente no cadastro)<input name="initial_stock" type="number" min="0" step="1" value="0"></label>
  <label>Ativo na loja<select name="is_active"><option value="false">Não — rascunho</option><option value="true">Sim</option></select></label>
@@ -85,6 +85,7 @@ window.setupNavilleProducts = async function(db) {
  renderGallery();
  const discountToggle=f.elements.discount_enabled,discountField=host.querySelector('#npDiscountField'),discountInput=f.elements.discount_price;
  const discountStyle=document.createElement('style');discountStyle.textContent=`
+ .np-price-column{display:flex;flex-direction:column;gap:14px;min-width:0}.np-price-column>label{display:flex;flex-direction:column;gap:7px}
  .np-discount-control{display:flex;flex-direction:column;gap:10px;justify-content:center}
  .np-discount-toggle{display:flex!important;flex-direction:row!important;align-items:center;gap:12px;cursor:pointer}
  .np-discount-toggle input{position:absolute;opacity:0;width:1px;height:1px}

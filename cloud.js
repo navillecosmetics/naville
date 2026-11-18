@@ -39,6 +39,7 @@
      document.querySelector('.admin-top').style.display='none';
      document.querySelector('.admin-main > .notice').style.display='none';
      if(!document.querySelector('#cloudLogout')){const b=document.createElement('button');b.id='cloudLogout';b.textContent='Sair da conta';document.querySelector('.sidebar').append(b);b.onclick=async()=>{await db.auth.signOut();showLogin();};}
+     if(window.setupNavilleOrders) window.setupNavilleOrders(db);
      await setupCloudAdmin();
      if(window.setupNavilleVariations)await window.setupNavilleVariations(db);
      if(window.setupNavilleProducts) await window.setupNavilleProducts(db);

@@ -22,8 +22,14 @@ msg(!chosen.length?'Sua sacola está vazia.':invalid?'Há produtos indisponívei
 
 const button=document.querySelector('#quoteButton'),quoteStatus=document.querySelector('#quoteStatus'),options=document.querySelector('#quoteOptions'),freight=document.querySelector('#checkoutFreight'),grand=document.querySelector('#checkoutGrand');
 const ready=chosen.length>0&&!invalid&&list.length>0;
-let generation=0,cartChanged=false;
-function reset(){generation++;options.replaceChildren();freight.textContent='—';grand.textContent='—';quoteStatus.textContent='';button.disabled=!ready||cartChanged;}
+let generation=0,cartChanged=false,selected=null,busy=false,attempted=false;
+const testButton=document.querySelector('#testOrderButton'),cpf=document.querySelector('#checkoutCpf');
+const admin=await db.rpc('is_admin');const canTest=!admin.error&&admin.data===true;
+if(canTest)testButton.textContent='Registrar pedido de teste';
+function syncTest(){testButton.disabled=!canTest||!selected||busy||attempted||cartChanged;}
+testButton.addEventListener('click',async()=>{if(testButton.disabled)return;const documentNumber=cpf.value.replace(/[.\s-]/g,'');if(!/^\d{11}$/.test(documentNumber)){msg('Informe um CPF válido.',true);return;}busy=true;attempted=true;syncTest();button.disabled=true;try{const {data,error}=await db.functions.invoke('checkout-create-order',{body:{customer_document:documentNumber,address_id:addresses.querySelector('input:checked')?.value,shipping_service_id:Number(selected.id),shipping_cost:Number(selected.price),items:chosen.map(x=>{const p=catalog.get(x.id);return {product_id:p.product_id,variant_id:p.variant_id,quantity:x.qty};})}});if(error){let d;try{d=await error.context?.json()}catch{}throw Error(d?.error||'Confira os pedidos antes de repetir.');}if(data?.status!=='ok')throw Error('Confira os pedidos antes de repetir.');msg('Pedido de teste registrado: '+data.order_id);cpf.value='';}catch(e){msg(e.message+' Confira o administrativo antes de tentar novamente.',true);}finally{busy=false;syncTest();}});
+
+function reset(){selected=null;syncTest();generation++;options.replaceChildren();freight.textContent='—';grand.textContent='—';quoteStatus.textContent='';button.disabled=!ready||cartChanged;}
 addresses.addEventListener('change',reset);
 window.addEventListener('storage',e=>{if(e.key==='naville-cart-v1'||e.key===null){cartChanged=true;reset();quoteStatus.textContent='Sua sacola mudou. Atualize esta página.';}});
 reset();
@@ -41,7 +47,7 @@ button.addEventListener('click',async()=>{
  const quotes=data.quotes.filter(q=>q.price!=null&&Number.isFinite(Number(q.price))&&Number(q.price)>=0&&q.delivery_time!=null&&Number.isFinite(Number(q.delivery_time))&&Number(q.delivery_time)>=0);
  if(!quotes.length){quoteStatus.textContent='Nenhuma entrega disponível para este endereço.';return;}
  quoteStatus.textContent='Selecione uma opção de entrega:';
- for(const q of quotes){const label=document.createElement('label');label.className='checkout-address checkout-quote';const radio=document.createElement('input');radio.type='radio';radio.name='shipping_service';radio.value=String(q.id);const desc=document.createElement('span');const name=document.createElement('strong');name.textContent=[q.company,q.service].filter(Boolean).join(' ');const days=document.createElement('small');days.textContent=`Prazo estimado: ${q.delivery_time} dias, incluindo preparação`;desc.append(name,days);const cost=document.createElement('strong');cost.textContent=money(q.price);label.append(radio,desc,cost);options.append(label);radio.addEventListener('change',()=>{if(request!==generation)return;freight.textContent=money(q.price);grand.textContent=money(total+Number(q.price));});}
+ for(const q of quotes){const label=document.createElement('label');label.className='checkout-address checkout-quote';const radio=document.createElement('input');radio.type='radio';radio.name='shipping_service';radio.value=String(q.id);const desc=document.createElement('span');const name=document.createElement('strong');name.textContent=[q.company,q.service].filter(Boolean).join(' ');const days=document.createElement('small');days.textContent=`Prazo estimado: ${q.delivery_time} dias, incluindo preparação`;desc.append(name,days);const cost=document.createElement('strong');cost.textContent=money(q.price);label.append(radio,desc,cost);options.append(label);radio.addEventListener('change',()=>{if(request!==generation)return;selected=q;syncTest();freight.textContent=money(q.price);grand.textContent=money(total+Number(q.price));});}
  }catch(e){if(request===generation)quoteStatus.textContent=e.message||'Não foi possível calcular o frete.';}
  finally{if(request===generation)button.disabled=!ready||cartChanged;}
 });

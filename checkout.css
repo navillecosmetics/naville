@@ -30,3 +30,5 @@
 .checkout-shell{font-family:Arial,Helvetica,sans-serif}
 .checkout-shell h1{font-family:"Glitten",Georgia,serif;font-weight:400}
 .checkout-shell button,.checkout-shell input,.checkout-shell label{font-family:Arial,Helvetica,sans-serif}
+
+.checkout-result{margin-top:16px;padding:14px 16px;border:1px solid #bac8ae;background:#eef3e9;color:#354b30;font:14px/1.5 Arial,sans-serif;overflow-wrap:anywhere}.checkout-result.error{background:#fff2f0;border-color:#e7b8b2;color:#982e27}.checkout-result[hidden]{display:none}
